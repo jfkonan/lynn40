@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lynn — 40 ans de gratitude</title>
+<style>
+  :root{
+    --cream:#FDF7F2; --paper:#FFFDFB; --blush:#F7E3E7; --rose:#B34A63;
+    --rose-deep:#8E3A50; --gold:#B98A2F; --gold-soft:#D8BC7E;
+    --ink:#4A3B38; --ink-soft:#8A7570; --line:#EDD9CE;
+    --ok:#4C7A4C; --ok-bg:#E8F1E4; --warn:#9A6A1B; --warn-bg:#F8ECD2;
+    --off:#8A7570; --off-bg:#F0E8E4;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(ellipse 60% 40% at 8% 5%, #F6D9DE 0%, transparent 60%),
+      radial-gradient(ellipse 50% 35% at 95% 12%, #F3D3DA 0%, transparent 55%),
+      radial-gradient(ellipse 55% 30% at 90% 92%, #F6DCE0 0%, transparent 60%),
+      radial-gradient(ellipse 45% 30% at 5% 95%, #F3D8DD 0%, transparent 55%),
+      var(--cream);
+    color:var(--ink);
+    font-family:Georgia,'Times New Roman',serif;
+    min-height:100vh;
+  }
+  .phone{max-width:440px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding-bottom:84px}
+  main{flex:1;padding:0 20px}
+  section{display:none;animation:fade .35s ease}
+  section.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){section{animation:none}}
+
+  .demo-note{background:var(--warn-bg);color:var(--warn);font-family:system-ui,sans-serif;font-size:12px;text-align:center;padding:8px 12px}
+  .masthead{text-align:center;padding:34px 20px 6px}
+  .eyebrow{font-family:system-ui,sans-serif;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);margin:0}
+  .num{font-size:64px;line-height:1;color:var(--gold);letter-spacing:.02em;margin:6px 0 0;font-weight:400}
+  .num small{font-size:22px;letter-spacing:.18em;color:var(--gold);vertical-align:18px}
+  .gratitude{font-size:19px;letter-spacing:.24em;color:var(--ink-soft);margin:2px 0 0;text-transform:lowercase}
+  .script{font-family:'Segoe Script','Brush Script MT','Snell Roundhand',cursive;color:var(--rose);font-size:46px;line-height:1.15;margin:10px 0 0}
+  .flourish{color:var(--gold-soft);font-size:14px;letter-spacing:.5em;margin:10px 0 0}
+
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0}
+  .card h2{font-size:15px;letter-spacing:.16em;text-transform:uppercase;color:var(--rose-deep);margin:0 0 12px;font-weight:400}
+
+  .invite-line{font-size:15.5px;line-height:1.75;color:var(--ink);text-align:center;margin:0;font-style:italic}
+  .meta{display:flex;justify-content:space-between;text-align:center;margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+  .meta div{flex:1;padding:0 6px}
+  .meta div + div{border-left:1px solid var(--line)}
+  .meta .k{font-family:system-ui,sans-serif;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin:0 0 4px}
+  .meta .v{font-size:13.5px;color:var(--rose-deep);margin:0;font-weight:700}
+
+  .count{display:flex;justify-content:center;gap:10px;margin-top:4px}
+  .count .cell{background:var(--blush);border-radius:10px;min-width:64px;padding:10px 6px;text-align:center}
+  .count .n{font-size:26px;color:var(--rose-deep);font-variant-numeric:tabular-nums;line-height:1}
+  .count .l{font-family:system-ui,sans-serif;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--rose);margin-top:5px}
+
+  .promise{text-align:center;font-style:italic;color:var(--ink-soft);font-size:14.5px;line-height:1.7;margin:18px 8px 6px}
+  .promise .sig{font-family:'Segoe Script','Brush Script MT',cursive;color:var(--rose);font-size:19px;font-style:normal;display:block;margin-top:4px}
+
+  button, input, textarea{font-family:system-ui,sans-serif;font-size:15px;color:var(--ink)}
+  input, textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;margin-top:6px}
+  input:focus, textarea:focus, button:focus-visible{outline:2px solid var(--gold-soft);outline-offset:1px}
+  label{font-family:system-ui,sans-serif;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);display:block;margin-top:14px}
+  .btn{display:block;width:100%;border:none;border-radius:12px;padding:13px;background:var(--rose);color:#fff;letter-spacing:.08em;text-transform:uppercase;font-size:13px;cursor:pointer;margin-top:18px}
+  .btn:hover{background:var(--rose-deep)}
+  .btn:disabled{opacity:.6;cursor:wait}
+  .choice{display:flex;gap:8px;margin-top:8px}
+  .choice button{flex:1;border:1px solid var(--line);background:#fff;border-radius:10px;padding:11px 4px;cursor:pointer;font-size:13.5px}
+  .choice button.sel{border-color:var(--rose);background:var(--blush);color:var(--rose-deep);font-weight:600}
+  .stepper{display:flex;align-items:center;gap:16px;margin-top:8px}
+  .stepper button{width:38px;height:38px;border:1px solid var(--line);background:#fff;border-radius:10px;font-size:19px;cursor:pointer;line-height:1}
+  .stepper span{font-size:19px;min-width:24px;text-align:center;font-variant-numeric:tabular-nums}
+  .saved{background:var(--ok-bg);color:var(--ok);border-radius:10px;padding:12px;font-family:system-ui,sans-serif;font-size:14px;text-align:center;margin-top:16px;display:none}
+
+  .stand{border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:10px;background:#fff}
+  .stand.star{border:1.5px solid var(--gold-soft);background:#FFFDF6}
+  .stand .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .stand .name{font-size:16px;color:var(--ink);margin:0}
+  .stand .desc{font-family:system-ui,sans-serif;font-size:12.5px;color:var(--ink-soft);margin:3px 0 0}
+  .badge{font-family:system-ui,sans-serif;font-size:11.5px;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .badge.ok{background:var(--ok-bg);color:var(--ok)}
+  .badge.warn{background:var(--warn-bg);color:var(--warn)}
+  .badge.off{background:var(--off-bg);color:var(--off)}
+  .gauge{height:6px;border-radius:3px;background:var(--blush);margin-top:12px;overflow:hidden}
+  .gauge i{display:block;height:100%;border-radius:3px;background:var(--ok)}
+  .gauge-note{font-family:system-ui,sans-serif;font-size:11.5px;color:var(--ink-soft);margin-top:6px;display:flex;justify-content:space-between}
+  .stands-hint{font-family:system-ui,sans-serif;font-size:12px;color:var(--ink-soft);text-align:center;margin-top:14px;font-style:italic}
+  .maj{font-family:system-ui,sans-serif;font-size:11.5px;color:var(--ink-soft);margin:0 0 8px;text-align:right}
+  .seg{display:flex;gap:6px;margin-top:10px}
+  .seg button{flex:1;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 2px;font-size:11.5px;cursor:pointer;color:var(--ink-soft)}
+  .seg button.sel{border-color:var(--rose);background:var(--blush);color:var(--rose-deep);font-weight:600}
+  .wait-ctl{display:flex;align-items:center;gap:10px;margin-top:8px;font-family:system-ui,sans-serif;font-size:12px;color:var(--ink-soft)}
+  .wait-ctl button{width:28px;height:28px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-size:15px;line-height:1}
+  .wait-ctl b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .linkbtn{background:none;border:none;color:var(--ink-soft);font-size:12px;text-decoration:underline;cursor:pointer;display:block;margin:16px auto 0}
+  .admin-head{display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px dashed var(--gold-soft)}
+  .admin-head p{margin:0;font-family:system-ui,sans-serif;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold)}
+  .journal{margin-top:8px}
+  .journal div{font-family:system-ui,sans-serif;font-size:12.5px;color:var(--ink-soft);padding:5px 0;border-bottom:1px dashed var(--line)}
+  .journal div b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+  .btn.gold{background:var(--gold)}
+  .btn.gold:hover{background:#9A7326}
+  .recap-stats{display:flex;gap:8px;margin-top:12px;text-align:center}
+  .recap-stats div{flex:1;background:var(--blush);border-radius:10px;padding:10px 4px}
+  .recap-stats .n{font-size:22px;color:var(--rose-deep);font-variant-numeric:tabular-nums}
+  .recap-stats .l{font-family:system-ui,sans-serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--rose);margin-top:3px}
+  .recap-list{margin-top:10px}
+  .recap-list div{font-family:system-ui,sans-serif;font-size:13px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .recap-list .who{font-weight:600}
+  .recap-list .det{color:var(--ink-soft);font-size:12px;margin-top:2px}
+
+  .song{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line)}
+  .song:last-child{border-bottom:none}
+  .song .t{flex:1;min-width:0}
+  .song .title{font-size:15px;margin:0}
+  .song .by{font-family:system-ui,sans-serif;font-size:12px;color:var(--ink-soft);margin:2px 0 0}
+  .vote{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--rose-deep);display:flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums}
+  .vote.voted{background:var(--blush);border-color:var(--rose);cursor:default}
+
+  .msg{border-bottom:1px solid var(--line);padding:12px 2px}
+  .msg:last-child{border-bottom:none}
+  .msg p{margin:0;font-size:14.5px;line-height:1.65;font-style:italic}
+  .msg .who{font-family:'Segoe Script','Brush Script MT',cursive;font-style:normal;color:var(--rose);font-size:16px;margin-top:5px}
+
+  nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,253,251,.96);border-top:1px solid var(--line);backdrop-filter:blur(6px)}
+  .nav-inner{max-width:440px;margin:0 auto;display:flex}
+  nav button{flex:1;background:none;border:none;padding:10px 2px 12px;cursor:pointer;color:var(--ink-soft);font-family:system-ui,sans-serif;font-size:10.5px;letter-spacing:.04em;display:flex;flex-direction:column;align-items:center;gap:3px}
+  nav button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  nav button.on{color:var(--rose)}
+  nav button.on svg{stroke:var(--rose)}
+
+  .toast{position:sticky;bottom:96px;margin:0 auto;width:max-content;max-width:90%;background:var(--ink);color:#fff;font-family:system-ui,sans-serif;font-size:13.5px;padding:10px 18px;border-radius:999px;opacity:0;transition:opacity .3s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div class="demo-note" id="demo-note" style="display:none">Mode démo — les données restent sur cet appareil (base de données non configurée).</div>
+
+<div class="phone">
+  <header class="masthead">
+    <p class="eyebrow">Vous êtes invités</p>
+    <p class="num">40<small>ANS</small></p>
+    <p class="gratitude">de gratitude</p>
+    <p class="script">Lynn</p>
+    <p class="flourish">❦ ─── ♥ ─── ❦</p>
+  </header>
+
+  <main>
+    <section id="tab-accueil" class="active">
+      <div class="card">
+        <p class="invite-line">Avec joie et reconnaissance, je vous invite à célébrer mes 40 ans et à partager avec moi un merveilleux moment de grâce et de bonheur.</p>
+        <div class="meta">
+          <div><p class="k">Date</p><p class="v">15 août 2026</p></div>
+          <div><p class="k">Heure</p><p class="v">dès 14h30</p></div>
+          <div><p class="k">Lieu</p><p class="v">Gbadouland, Akassato</p></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Compte à rebours</h2>
+        <div class="count">
+          <div class="cell"><div class="n" id="cd-j">–</div><div class="l">jours</div></div>
+          <div class="cell"><div class="n" id="cd-h">–</div><div class="l">heures</div></div>
+          <div class="cell"><div class="n" id="cd-m">–</div><div class="l">min</div></div>
+          <div class="cell"><div class="n" id="cd-s">–</div><div class="l">sec</div></div>
+        </div>
+      </div>
+      <p class="promise">Venez avec vos sourires et votre belle énergie…<span class="sig">je m'occupe du reste !</span></p>
+    </section>
+
+    <section id="tab-rsvp">
+      <div class="card">
+        <h2>Confirmer ma présence</h2>
+        <label for="r-name">Votre nom</label>
+        <input id="r-name" placeholder="Awa Kouadio" autocomplete="name">
+        <label>Serez-vous des nôtres le 15 août ?</label>
+        <div class="choice" id="r-choice">
+          <button data-v="oui">Oui, avec joie</button>
+          <button data-v="peut-etre">Peut-être</button>
+          <button data-v="non">Non</button>
+        </div>
+        <label>Accompagnants adultes</label>
+        <div class="stepper">
+          <button id="r-aminus" aria-label="Retirer un adulte">−</button>
+          <span id="r-acount">0</span>
+          <button id="r-aplus" aria-label="Ajouter un adulte">+</button>
+        </div>
+        <label>Enfants</label>
+        <div class="stepper">
+          <button id="r-kminus" aria-label="Retirer un enfant">−</button>
+          <span id="r-kcount">0</span>
+          <button id="r-kplus" aria-label="Ajouter un enfant">+</button>
+        </div>
+        <label for="r-note">Un mot pour l'organisation ? <span style="text-transform:none">(allergies, arrivée tardive…)</span></label>
+        <textarea id="r-note" rows="2" placeholder="J'arriverai vers 16h"></textarea>
+        <button class="btn" id="r-send">Envoyer ma réponse</button>
+        <div class="saved" id="r-saved"></div>
+      </div>
+    </section>
+
+    <section id="tab-stands">
+      <div class="card">
+        <h2>Les stands de la fête</h2>
+        <p class="maj" id="stands-maj"></p>
+        <div id="stands"></div>
+        <p class="stands-hint" id="stands-hint">Le jour J, les statuts sont mis à jour en direct par l'organisateur.</p>
+        <div id="admin-panel" style="display:none">
+          <div class="admin-head">
+            <p>Mode organisateur</p>
+            <button class="linkbtn" id="admin-out" style="margin:0">quitter</button>
+          </div>
+          <button class="btn gold" id="releve">Copier le relevé de l'heure</button>
+          <button class="btn" id="rsvp-view">Voir les réponses RSVP</button>
+          <div id="rsvp-recap"></div>
+          <label style="margin-top:18px">Journal des changements</label>
+          <div class="journal" id="journal"></div>
+        </div>
+        <button class="linkbtn" id="admin-in">Accès organisateur</button>
+      </div>
+    </section>
+
+    <section id="tab-playlist">
+      <div class="card">
+        <h2>La playlist des invités</h2>
+        <div id="songs"></div>
+        <label for="s-title">Proposer un morceau</label>
+        <input id="s-title" placeholder="Titre — artiste">
+        <label for="s-by">Votre prénom</label>
+        <input id="s-by" placeholder="Fatou">
+        <button class="btn" id="s-add">Ajouter à la playlist</button>
+      </div>
+    </section>
+
+    <section id="tab-mur">
+      <div class="card">
+        <h2>Livre d'or pour Lynn</h2>
+        <div id="msgs"></div>
+        <label for="m-text">Votre message</label>
+        <textarea id="m-text" rows="3" placeholder="Joyeux anniversaire Lynn…"></textarea>
+        <label for="m-by">Votre prénom</label>
+        <input id="m-by" placeholder="Yao">
+        <button class="btn" id="m-add">Déposer mon message</button>
+      </div>
+    </section>
+
+    <div class="toast" id="toast" role="status"></div>
+  </main>
+
+  <nav aria-label="Navigation">
+    <div class="nav-inner">
+      <button data-tab="accueil" class="on"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8"/><path d="M5 10v11h5v-6h4v6h5V10"/></svg>Accueil</button>
+      <button data-tab="rsvp"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 15l2 2 4-4"/></svg>RSVP</button>
+      <button data-tab="stands"><svg viewBox="0 0 24 24"><path d="M4 10v10h16V10"/><path d="M2 10l2-6h16l2 6"/><path d="M9 20v-6h6v6"/></svg>Stands</button>
+      <button data-tab="playlist"><svg viewBox="0 0 24 24"><circle cx="7" cy="18" r="3"/><circle cx="18" cy="15" r="3"/><path d="M10 18V5l11-2v12"/></svg>Playlist</button>
+      <button data-tab="mur"><svg viewBox="0 0 24 24"><path d="M12 21C7 17.2 3.5 13.8 3.5 10A4.5 4.5 0 0 1 12 7.5 4.5 4.5 0 0 1 20.5 10c0 3.8-3.5 7.2-8.5 11z"/></svg>Livre d'or</button>
+    </div>
+  </nav>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURATION — collez ici les deux valeurs de votre projet
+   Supabase (Settings → API) puis redéployez le fichier.
+   Tant que ces valeurs sont vides, l'app tourne en mode démo
+   (les données restent sur l'appareil de chaque visiteur).
+   ============================================================ */
+var SUPABASE_URL = "https://mleqvlkadbkvmbhpiike.supabase.co";
+var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sZXF2bGthZGJrdm1iaHBpaWtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NzYyMzIsImV4cCI6MjA5OTQ1MjIzMn0.GNIw5n1BnraNMlPw8A0i9QQ2nbBOp3WfS0A7se3tJko";
+
+(function(){
+  var ONLINE = !!(SUPABASE_URL && SUPABASE_KEY);
+  if(!ONLINE){document.getElementById('demo-note').style.display='block'}
+
+  function api(method,path,body,prefer){
+    return fetch(SUPABASE_URL+'/rest/v1/'+path,{
+      method:method,
+      headers:{
+        apikey:SUPABASE_KEY,
+        Authorization:'Bearer '+SUPABASE_KEY,
+        'Content-Type':'application/json',
+        Prefer:prefer||'return=representation'
+      },
+      body:body?JSON.stringify(body):undefined
+    }).then(function(r){
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return r.status===204?null:r.json();
+    });
+  }
+  function offline(){toast('Connexion impossible — vérifiez le réseau et réessayez')}
+
+  var tabs=document.querySelectorAll('nav button');
+  tabs.forEach(function(b){
+    b.addEventListener('click',function(){
+      tabs.forEach(function(x){x.classList.remove('on')});
+      b.classList.add('on');
+      document.querySelectorAll('main section').forEach(function(s){s.classList.remove('active')});
+      document.getElementById('tab-'+b.dataset.tab).classList.add('active');
+      window.scrollTo({top:0});
+      if(ONLINE){
+        if(b.dataset.tab==='stands')fetchStands();
+        if(b.dataset.tab==='playlist')fetchSongs();
+        if(b.dataset.tab==='mur')fetchMsgs();
+      }
+    });
+  });
+
+  var target=new Date('2026-08-15T14:30:00');
+  function pad(n){return n<10?'0'+n:''+n}
+  function tick(){
+    var d=target-new Date();
+    if(d<0)d=0;
+    document.getElementById('cd-j').textContent=Math.floor(d/864e5);
+    document.getElementById('cd-h').textContent=pad(Math.floor(d/36e5)%24);
+    document.getElementById('cd-m').textContent=pad(Math.floor(d/6e4)%60);
+    document.getElementById('cd-s').textContent=pad(Math.floor(d/1e3)%60);
+  }
+  tick();setInterval(tick,1000);
+
+  var toastEl=document.getElementById('toast'),toastT;
+  function toast(m){toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(toastT);toastT=setTimeout(function(){toastEl.classList.remove('show')},2600)}
+  function load(k,f){try{var v=localStorage.getItem(k);return v?JSON.parse(v):f}catch(e){return f}}
+  function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+  function now(){var d=new Date();return pad(d.getHours())+'h'+pad(d.getMinutes())}
+  function hm(iso){var d=new Date(iso);return pad(d.getHours())+'h'+pad(d.getMinutes())}
+  var deviceId=load('lynn40_device',null);
+  if(!deviceId){
+    deviceId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'dev-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+    save('lynn40_device',deviceId);
+  }
+
+  /* ---------- RSVP ---------- */
+  var rsvp=load('lynn40_rsvp',{choice:null,adults:0,kids:0}),
+      choiceBtns=document.querySelectorAll('#r-choice button');
+  if(rsvp.adults===undefined){rsvp.adults=rsvp.count||0;rsvp.kids=0}
+  function paintRsvp(){
+    choiceBtns.forEach(function(b){b.classList.toggle('sel',b.dataset.v===rsvp.choice)});
+    document.getElementById('r-acount').textContent=rsvp.adults;
+    document.getElementById('r-kcount').textContent=rsvp.kids;
+    if(rsvp.name){document.getElementById('r-name').value=rsvp.name}
+    if(rsvp.note){document.getElementById('r-note').value=rsvp.note}
+    if(rsvp.sent){
+      var s=document.getElementById('r-saved'),extra=[];
+      if(rsvp.adults>0)extra.push(rsvp.adults+' adulte'+(rsvp.adults>1?'s':''));
+      if(rsvp.kids>0)extra.push(rsvp.kids+' enfant'+(rsvp.kids>1?'s':''));
+      s.style.display='block';
+      s.textContent='Réponse enregistrée : '+(rsvp.choice==='oui'?'présent(e)':rsvp.choice==='non'?'absent(e)':'peut-être')+(extra.length?' + '+extra.join(' et '):'')+'. Merci '+(rsvp.name||'')+' !';
+    }
+  }
+  choiceBtns.forEach(function(b){b.addEventListener('click',function(){rsvp.choice=b.dataset.v;paintRsvp()})});
+  document.getElementById('r-aminus').addEventListener('click',function(){if(rsvp.adults>0){rsvp.adults--;paintRsvp()}});
+  document.getElementById('r-aplus').addEventListener('click',function(){if(rsvp.adults<15){rsvp.adults++;paintRsvp()}});
+  document.getElementById('r-kminus').addEventListener('click',function(){if(rsvp.kids>0){rsvp.kids--;paintRsvp()}});
+  document.getElementById('r-kplus').addEventListener('click',function(){if(rsvp.kids<15){rsvp.kids++;paintRsvp()}});
+  document.getElementById('r-send').addEventListener('click',function(){
+    rsvp.name=document.getElementById('r-name').value.trim();
+    rsvp.note=document.getElementById('r-note').value.trim();
+    if(!rsvp.name){toast('Indiquez votre nom');return}
+    if(!rsvp.choice){toast('Choisissez une réponse');return}
+    var btn=document.getElementById('r-send');
+    function done(){rsvp.sent=true;save('lynn40_rsvp',rsvp);paintRsvp();toast('Merci ! Votre réponse est enregistrée 🌸');btn.disabled=false}
+    if(ONLINE){
+      btn.disabled=true;
+      api('POST','rsvps?on_conflict=device_id',{
+        device_id:deviceId,name:rsvp.name,choice:rsvp.choice,
+        adults:rsvp.adults,kids:rsvp.kids,note:rsvp.note,
+        updated_at:new Date().toISOString()
+      },'resolution=merge-duplicates,return=representation')
+      .then(done).catch(function(){btn.disabled=false;offline()});
+    }else{done()}
+  });
+  paintRsvp();
+
+  /* ---------- Stands ---------- */
+  var STANDS=[
+    {id:'dibi',n:'🔥 Dibiterie',d:'Brochettes & dibi au feu de bois — le stand vedette',star:true},
+    {id:'jus',n:'🍹 Bar à jus & bissap',d:'Bissap, gingembre, cocktails sans alcool'},
+    {id:'champ',n:'🥂 Champagne & douceurs',d:'Bulles et mignardises, comme sur le carton'},
+    {id:'cake',n:'🎂 Le gâteau de Lynn',d:'Cérémonie du gâteau'},
+    {id:'photo',n:'📸 Photobooth',d:'Souvenirs roses & dorés à emporter'}
+  ];
+  var LABELS={ok:'Disponible',warn:'Forte affluence',off:'Fermé'};
+  var st=load('lynn40_stands',{
+    dibi:{s:'ok',w:5},jus:{s:'ok'},champ:{s:'warn'},cake:{s:'off',lbl:'À partir de 18h'},photo:{s:'ok'},maj:null
+  });
+  var journal=load('lynn40_journal',[]);
+  var admin=load('lynn40_admin',false);
+  function standName(id){return STANDS.filter(function(o){return o.id===id})[0].n}
+  function standLabel(x){return x.lbl||LABELS[x.s]}
+
+  function fetchStands(){
+    if(!ONLINE)return;
+    api('GET','stands?select=*').then(function(rows){
+      var latest=null;
+      rows.forEach(function(r){
+        st[r.id]={s:r.status,w:r.wait,lbl:r.label};
+        if(!latest||r.updated_at>latest)latest=r.updated_at;
+      });
+      st.maj=latest?hm(latest):null;
+      paintStands();
+    }).catch(function(){});
+    if(admin)fetchJournal();
+  }
+  function fetchJournal(){
+    api('GET','events?select=*&order=t.desc&limit=12').then(function(rows){
+      journal=rows.map(function(e){return {t:hm(e.t),txt:e.txt}});
+      paintJournal();
+    }).catch(function(){});
+  }
+  function paintJournal(){
+    document.getElementById('journal').innerHTML=journal.slice(0,12).map(function(e){
+      return '<div><b>'+e.t+'</b> — '+esc(e.txt)+'</div>';
+    }).join('')||'<div>Aucun changement pour l’instant.</div>';
+  }
+  function logEvent(txt){
+    if(ONLINE){api('POST','events',{txt:txt}).then(fetchJournal).catch(function(){})}
+    else{journal.unshift({t:now(),txt:txt});journal=journal.slice(0,60);save('lynn40_journal',journal);paintJournal()}
+  }
+  function setStand(id,fields,eventTxt){
+    if(ONLINE){
+      fields.updated_at=new Date().toISOString();
+      api('PATCH','stands?id=eq.'+id,fields,'return=minimal').then(function(){
+        if(eventTxt)logEvent(eventTxt);
+        fetchStands();
+      }).catch(offline);
+    }else{
+      if(fields.status!==undefined){st[id].s=fields.status;delete st[id].lbl}
+      if(fields.wait!==undefined)st[id].w=fields.wait;
+      st.maj=now();save('lynn40_stands',st);
+      if(eventTxt)logEvent(eventTxt);
+      paintStands();
+    }
+  }
+  function paintStands(){
+    var el=document.getElementById('stands');
+    el.innerHTML=STANDS.map(function(o){
+      var x=st[o.id],h='<div class="stand'+(o.star?' star':'')+'" data-id="'+o.id+'">'+
+        '<div class="row"><div><p class="name">'+o.n+'</p><p class="desc">'+o.d+'</p></div>'+
+        '<span class="badge '+x.s+'">'+esc(standLabel(x))+'</span></div>';
+      if(o.star){
+        var w=x.s==='off'?0:Math.max(8,100-(x.w||5)*3);
+        h+='<div class="gauge"><i style="width:'+w+'%;background:'+(x.s==='warn'?'#D9A93F':'var(--ok)')+'"></i></div>'+
+           '<div class="gauge-note"><span>Niveau de disponibilité</span><span>'+
+           (x.s==='off'?'stand fermé':'file d’attente : ~'+(x.w||5)+' min')+'</span></div>';
+      }
+      if(admin){
+        h+='<div class="seg">'+['ok','warn','off'].map(function(s){
+          return '<button data-s="'+s+'" class="'+(x.s===s&&!x.lbl?'sel':'')+'">'+LABELS[s]+'</button>';
+        }).join('')+'</div>';
+        if(o.star){h+='<div class="wait-ctl"><span>Attente</span><button data-w="-5">−</button><b>'+(x.w||5)+' min</b><button data-w="5">+</button></div>'}
+      }
+      return h+'</div>';
+    }).join('');
+    document.getElementById('stands-maj').textContent=st.maj?'Mis à jour à '+st.maj:'';
+    document.getElementById('admin-panel').style.display=admin?'block':'none';
+    document.getElementById('admin-in').style.display=admin?'none':'block';
+    document.getElementById('stands-hint').style.display=admin?'none':'block';
+    paintJournal();
+    if(admin){
+      el.querySelectorAll('.seg button').forEach(function(b){
+        b.addEventListener('click',function(){
+          var id=b.closest('.stand').dataset.id;
+          setStand(id,{status:b.dataset.s,label:null},standName(id)+' → '+LABELS[b.dataset.s]);
+        });
+      });
+      el.querySelectorAll('.wait-ctl button').forEach(function(b){
+        b.addEventListener('click',function(){
+          var id=b.closest('.stand').dataset.id;
+          var w=Math.min(45,Math.max(0,(st[id].w||5)+(+b.dataset.w)));
+          setStand(id,{wait:w},null);
+        });
+      });
+    }
+  }
+  document.getElementById('admin-in').addEventListener('click',function(){
+    var code=window.prompt('Code organisateur :');
+    if(code==='1508'){admin=true;save('lynn40_admin',true);paintStands();if(ONLINE)fetchJournal();toast('Mode organisateur activé')}
+    else if(code!==null){toast('Code incorrect')}
+  });
+  document.getElementById('admin-out').addEventListener('click',function(){
+    admin=false;save('lynn40_admin',false);
+    document.getElementById('rsvp-recap').innerHTML='';
+    paintStands();
+  });
+  document.getElementById('releve').addEventListener('click',function(){
+    var txt='Relevé des stands — '+now()+'\n'+STANDS.map(function(o){
+      var x=st[o.id];
+      return o.n.replace(/^\S+\s/,'')+' : '+standLabel(x)+(o.star&&x.s!=='off'?' (~'+(x.w||5)+' min)':'');
+    }).join('\n');
+    logEvent('Relevé horaire copié');
+    function done(){toast('Relevé copié — collez-le dans WhatsApp 📋')}
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,function(){window.prompt('Copiez le relevé :',txt);done()})}
+    else{window.prompt('Copiez le relevé :',txt);done()}
+  });
+  document.getElementById('rsvp-view').addEventListener('click',function(){
+    var box=document.getElementById('rsvp-recap');
+    if(!ONLINE){
+      box.innerHTML='<div class="recap-list"><div>Le récapitulatif de toutes les réponses sera disponible une fois la base de données connectée.</div></div>';
+      return;
+    }
+    api('GET','rsvps?select=*&order=updated_at.desc').then(function(rows){
+      var oui=0,pe=0,non=0,pers=0;
+      rows.forEach(function(r){
+        if(r.choice==='oui'){oui++;pers+=1+(r.adults||0)+(r.kids||0)}
+        else if(r.choice==='non'){non++}
+        else{pe++}
+      });
+      box.innerHTML=
+        '<div class="recap-stats">'+
+        '<div><div class="n">'+oui+'</div><div class="l">oui</div></div>'+
+        '<div><div class="n">'+pe+'</div><div class="l">peut-être</div></div>'+
+        '<div><div class="n">'+non+'</div><div class="l">non</div></div>'+
+        '<div><div class="n">'+pers+'</div><div class="l">personnes</div></div>'+
+        '</div><div class="recap-list">'+
+        (rows.map(function(r){
+          var det=[];
+          if(r.adults>0)det.push('+'+r.adults+' adulte'+(r.adults>1?'s':''));
+          if(r.kids>0)det.push(r.kids+' enfant'+(r.kids>1?'s':''));
+          if(r.note)det.push('« '+r.note+' »');
+          return '<div><span class="who">'+esc(r.name)+'</span> — '+
+            (r.choice==='oui'?'présent(e)':r.choice==='non'?'absent(e)':'peut-être')+
+            (det.length?'<div class="det">'+esc(det.join(' · '))+'</div>':'')+'</div>';
+        }).join('')||'<div>Aucune réponse pour l’instant.</div>')+'</div>';
+    }).catch(offline);
+  });
+  paintStands();
+  if(ONLINE){
+    fetchStands();
+    setInterval(function(){
+      if(document.getElementById('tab-stands').classList.contains('active')&&!document.hidden)fetchStands();
+    },20000);
+  }
+
+  /* ---------- Playlist ---------- */
+  var songs=load('lynn40_songs',[
+    {id:'l1',t:'Coller la petite — Franko',by:'Fatou',v:12},
+    {id:'l2',t:'1er gaou — Magic System',by:'Yao',v:9},
+    {id:'l3',t:'Sweet Fanta Diallo — Alpha Blondy',by:'Aminata',v:7},
+    {id:'l4',t:'On va gérer — Serge Beynaud',by:'Koffi',v:5}
+  ]);
+  var myVotes=load('lynn40_votes',{});
+  function fetchSongs(){
+    api('GET','songs?select=*&order=votes.desc,created_at.asc').then(function(rows){
+      songs=rows.map(function(r){return {id:r.id,t:r.title,by:r.by_name,v:r.votes}});
+      paintSongs();
+    }).catch(function(){});
+  }
+  function paintSongs(){
+    songs.sort(function(a,b){return b.v-a.v});
+    document.getElementById('songs').innerHTML=songs.map(function(s,i){
+      var voted=myVotes[s.id]?' voted':'';
+      return '<div class="song"><div class="t"><p class="title">'+esc(s.t)+'</p><p class="by">proposé par '+esc(s.by)+'</p></div>'+
+        '<button class="vote'+voted+'" data-i="'+i+'" aria-label="Voter pour '+esc(s.t)+'">♥ '+s.v+'</button></div>';
+    }).join('')||'<p class="stands-hint">Soyez le premier à proposer un morceau !</p>';
+    document.querySelectorAll('.vote').forEach(function(b){
+      b.addEventListener('click',function(){
+        var s=songs[+b.dataset.i];
+        if(myVotes[s.id]){toast('Vous avez déjà voté pour ce titre');return}
+        myVotes[s.id]=1;save('lynn40_votes',myVotes);
+        if(ONLINE){
+          api('POST','rpc/vote_song',{song_id:s.id},'return=minimal').then(fetchSongs).catch(offline);
+        }else{
+          s.v++;save('lynn40_songs',songs);paintSongs();
+        }
+      });
+    });
+  }
+  document.getElementById('s-add').addEventListener('click',function(){
+    var t=document.getElementById('s-title').value.trim(),by=document.getElementById('s-by').value.trim();
+    if(!t){toast('Indiquez le titre du morceau');return}
+    function done(){document.getElementById('s-title').value='';toast('Morceau ajouté à la playlist 🎶')}
+    if(ONLINE){
+      api('POST','songs',{title:t,by_name:by||'un invité'}).then(function(rows){
+        if(rows&&rows[0]){myVotes[rows[0].id]=1;save('lynn40_votes',myVotes)}
+        done();fetchSongs();
+      }).catch(offline);
+    }else{
+      var id='l'+Date.now();
+      songs.push({id:id,t:t,by:by||'un invité',v:1});myVotes[id]=1;
+      save('lynn40_songs',songs);save('lynn40_votes',myVotes);
+      done();paintSongs();
+    }
+  });
+  paintSongs();
+  if(ONLINE)fetchSongs();
+
+  /* ---------- Livre d'or ---------- */
+  var msgs=load('lynn40_msgs',[
+    {m:'Quarante ans de lumière, de grâce et de générosité. Que cette nouvelle décennie te comble, ma belle Lynn !',by:'Tantie Marguerite'},
+    {m:'À la plus rayonnante des cousines — on danse jusqu’au bout de la nuit le 15 !',by:'Jean-François'}
+  ]);
+  function fetchMsgs(){
+    api('GET','messages?select=*&order=created_at.asc').then(function(rows){
+      msgs=rows.map(function(r){return {m:r.body,by:r.by_name}});
+      paintMsgs();
+    }).catch(function(){});
+  }
+  function paintMsgs(){
+    document.getElementById('msgs').innerHTML=msgs.map(function(x){
+      return '<div class="msg"><p>« '+esc(x.m)+' »</p><p class="who">— '+esc(x.by)+'</p></div>';
+    }).join('')||'<p class="stands-hint">Laissez le premier message pour Lynn 💌</p>';
+  }
+  document.getElementById('m-add').addEventListener('click',function(){
+    var m=document.getElementById('m-text').value.trim(),by=document.getElementById('m-by').value.trim();
+    if(!m){toast('Écrivez un petit mot pour Lynn');return}
+    function done(){document.getElementById('m-text').value='';toast('Message déposé dans le livre d’or 💌')}
+    if(ONLINE){
+      api('POST','messages',{body:m,by_name:by||'Un invité'}).then(function(){done();fetchMsgs()}).catch(offline);
+    }else{
+      msgs.push({m:m,by:by||'Un invité'});save('lynn40_msgs',msgs);
+      done();paintMsgs();
+    }
+  });
+  paintMsgs();
+  if(ONLINE)fetchMsgs();
+})();
+</script>
+</body>
+</html>
