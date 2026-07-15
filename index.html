@@ -111,6 +111,11 @@
   .recap-list .who{font-weight:600}
   .recap-list .det{color:var(--ink-soft);font-size:12px;margin-top:2px}
 
+  .ck{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:8px;background:#fff;cursor:pointer}
+  .ck.sel{border-color:var(--rose);background:var(--blush)}
+  .myord div{display:flex;justify-content:space-between;align-items:center;font-family:system-ui,sans-serif;font-size:13px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .myord div:last-child{border-bottom:none}
+
   .song{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line)}
   .song:last-child{border-bottom:none}
   .song .t{flex:1;min-width:0}
@@ -206,18 +211,15 @@
         <p class="maj" id="stands-maj"></p>
         <div id="stands"></div>
         <p class="stands-hint" id="stands-hint">Le jour J, les statuts sont mis à jour en direct par l'organisateur.</p>
-        <div id="admin-panel" style="display:none">
-          <div class="admin-head">
-            <p>Mode organisateur</p>
-            <button class="linkbtn" id="admin-out" style="margin:0">quitter</button>
-          </div>
-          <button class="btn gold" id="releve">Copier le relevé de l'heure</button>
-          <button class="btn" id="rsvp-view">Voir les réponses RSVP</button>
-          <div id="rsvp-recap"></div>
-          <label style="margin-top:18px">Journal des changements</label>
-          <div class="journal" id="journal"></div>
-        </div>
-        <button class="linkbtn" id="admin-in">Accès organisateur</button>
+      </div>
+      <div class="card">
+        <h2>🍸 La carte des cocktails</h2>
+        <p class="stands-hint" style="margin:0 0 4px;text-align:left">Touchez votre cocktail, indiquez votre prénom — il vous attendra au stand.</p>
+        <div id="cocktails"></div>
+        <label for="c-name">Votre prénom</label>
+        <input id="c-name" placeholder="Awa">
+        <button class="btn" id="c-order" disabled>Choisissez un cocktail</button>
+        <div id="my-orders"></div>
       </div>
     </section>
 
@@ -376,18 +378,16 @@ var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
   /* ---------- Stands ---------- */
   var STANDS=[
     {id:'dibi',n:'🔥 Dibiterie',d:'Brochettes & dibi au feu de bois — le stand vedette',star:true},
-    {id:'jus',n:'🍹 Bar à jus & bissap',d:'Bissap, gingembre, cocktails sans alcool'},
+    {id:'cocktail',n:'🍸 Stand cocktails',d:'Avec ou sans alcool — commandez depuis l’app, carte ci-dessous'},
+    {id:'jus',n:'🍹 Bar à jus & bissap',d:'Bissap, gingembre, jus frais'},
     {id:'champ',n:'🥂 Champagne & douceurs',d:'Bulles et mignardises, comme sur le carton'},
     {id:'cake',n:'🎂 Le gâteau de Lynn',d:'Cérémonie du gâteau'},
     {id:'photo',n:'📸 Photobooth',d:'Souvenirs roses & dorés à emporter'}
   ];
   var LABELS={ok:'Disponible',warn:'Forte affluence',off:'Fermé'};
   var st=load('lynn40_stands',{
-    dibi:{s:'ok',w:5},jus:{s:'ok'},champ:{s:'warn'},cake:{s:'off',lbl:'À partir de 18h'},photo:{s:'ok'},maj:null
+    dibi:{s:'ok',w:5},cocktail:{s:'ok'},jus:{s:'ok'},champ:{s:'warn'},cake:{s:'off',lbl:'À partir de 18h'},photo:{s:'ok'},maj:null
   });
-  var journal=load('lynn40_journal',[]);
-  var admin=load('lynn40_admin',false);
-  function standName(id){return STANDS.filter(function(o){return o.id===id})[0].n}
   function standLabel(x){return x.lbl||LABELS[x.s]}
 
   function fetchStands(){
@@ -401,42 +401,11 @@ var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
       st.maj=latest?hm(latest):null;
       paintStands();
     }).catch(function(){});
-    if(admin)fetchJournal();
-  }
-  function fetchJournal(){
-    api('GET','events?select=*&order=t.desc&limit=12').then(function(rows){
-      journal=rows.map(function(e){return {t:hm(e.t),txt:e.txt}});
-      paintJournal();
-    }).catch(function(){});
-  }
-  function paintJournal(){
-    document.getElementById('journal').innerHTML=journal.slice(0,12).map(function(e){
-      return '<div><b>'+e.t+'</b> — '+esc(e.txt)+'</div>';
-    }).join('')||'<div>Aucun changement pour l’instant.</div>';
-  }
-  function logEvent(txt){
-    if(ONLINE){api('POST','events',{txt:txt}).then(fetchJournal).catch(function(){})}
-    else{journal.unshift({t:now(),txt:txt});journal=journal.slice(0,60);save('lynn40_journal',journal);paintJournal()}
-  }
-  function setStand(id,fields,eventTxt){
-    if(ONLINE){
-      fields.updated_at=new Date().toISOString();
-      api('PATCH','stands?id=eq.'+id,fields,'return=minimal').then(function(){
-        if(eventTxt)logEvent(eventTxt);
-        fetchStands();
-      }).catch(offline);
-    }else{
-      if(fields.status!==undefined){st[id].s=fields.status;delete st[id].lbl}
-      if(fields.wait!==undefined)st[id].w=fields.wait;
-      st.maj=now();save('lynn40_stands',st);
-      if(eventTxt)logEvent(eventTxt);
-      paintStands();
-    }
   }
   function paintStands(){
     var el=document.getElementById('stands');
     el.innerHTML=STANDS.map(function(o){
-      var x=st[o.id],h='<div class="stand'+(o.star?' star':'')+'" data-id="'+o.id+'">'+
+      var x=st[o.id]||{s:'ok'},h='<div class="stand'+(o.star?' star':'')+'">'+
         '<div class="row"><div><p class="name">'+o.n+'</p><p class="desc">'+o.d+'</p></div>'+
         '<span class="badge '+x.s+'">'+esc(standLabel(x))+'</span></div>';
       if(o.star){
@@ -445,93 +414,77 @@ var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
            '<div class="gauge-note"><span>Niveau de disponibilité</span><span>'+
            (x.s==='off'?'stand fermé':'file d’attente : ~'+(x.w||5)+' min')+'</span></div>';
       }
-      if(admin){
-        h+='<div class="seg">'+['ok','warn','off'].map(function(s){
-          return '<button data-s="'+s+'" class="'+(x.s===s&&!x.lbl?'sel':'')+'">'+LABELS[s]+'</button>';
-        }).join('')+'</div>';
-        if(o.star){h+='<div class="wait-ctl"><span>Attente</span><button data-w="-5">−</button><b>'+(x.w||5)+' min</b><button data-w="5">+</button></div>'}
-      }
       return h+'</div>';
     }).join('');
     document.getElementById('stands-maj').textContent=st.maj?'Mis à jour à '+st.maj:'';
-    document.getElementById('admin-panel').style.display=admin?'block':'none';
-    document.getElementById('admin-in').style.display=admin?'none':'block';
-    document.getElementById('stands-hint').style.display=admin?'none':'block';
-    paintJournal();
-    if(admin){
-      el.querySelectorAll('.seg button').forEach(function(b){
-        b.addEventListener('click',function(){
-          var id=b.closest('.stand').dataset.id;
-          setStand(id,{status:b.dataset.s,label:null},standName(id)+' → '+LABELS[b.dataset.s]);
-        });
-      });
-      el.querySelectorAll('.wait-ctl button').forEach(function(b){
-        b.addEventListener('click',function(){
-          var id=b.closest('.stand').dataset.id;
-          var w=Math.min(45,Math.max(0,(st[id].w||5)+(+b.dataset.w)));
-          setStand(id,{wait:w},null);
-        });
-      });
-    }
+    updateOrderBtn();
   }
-  document.getElementById('admin-in').addEventListener('click',function(){
-    var code=window.prompt('Code organisateur :');
-    if(code==='1508'){admin=true;save('lynn40_admin',true);paintStands();if(ONLINE)fetchJournal();toast('Mode organisateur activé')}
-    else if(code!==null){toast('Code incorrect')}
-  });
-  document.getElementById('admin-out').addEventListener('click',function(){
-    admin=false;save('lynn40_admin',false);
-    document.getElementById('rsvp-recap').innerHTML='';
-    paintStands();
-  });
-  document.getElementById('releve').addEventListener('click',function(){
-    var txt='Relevé des stands — '+now()+'\n'+STANDS.map(function(o){
-      var x=st[o.id];
-      return o.n.replace(/^\S+\s/,'')+' : '+standLabel(x)+(o.star&&x.s!=='off'?' (~'+(x.w||5)+' min)':'');
-    }).join('\n');
-    logEvent('Relevé horaire copié');
-    function done(){toast('Relevé copié — collez-le dans WhatsApp 📋')}
-    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,function(){window.prompt('Copiez le relevé :',txt);done()})}
-    else{window.prompt('Copiez le relevé :',txt);done()}
-  });
-  document.getElementById('rsvp-view').addEventListener('click',function(){
-    var box=document.getElementById('rsvp-recap');
-    if(!ONLINE){
-      box.innerHTML='<div class="recap-list"><div>Le récapitulatif de toutes les réponses sera disponible une fois la base de données connectée.</div></div>';
-      return;
-    }
-    api('GET','rsvps?select=*&order=updated_at.desc').then(function(rows){
-      var oui=0,pe=0,non=0,pers=0;
-      rows.forEach(function(r){
-        if(r.choice==='oui'){oui++;pers+=1+(r.adults||0)+(r.kids||0)}
-        else if(r.choice==='non'){non++}
-        else{pe++}
-      });
-      box.innerHTML=
-        '<div class="recap-stats">'+
-        '<div><div class="n">'+oui+'</div><div class="l">oui</div></div>'+
-        '<div><div class="n">'+pe+'</div><div class="l">peut-être</div></div>'+
-        '<div><div class="n">'+non+'</div><div class="l">non</div></div>'+
-        '<div><div class="n">'+pers+'</div><div class="l">personnes</div></div>'+
-        '</div><div class="recap-list">'+
-        (rows.map(function(r){
-          var det=[];
-          if(r.adults>0)det.push('+'+r.adults+' adulte'+(r.adults>1?'s':''));
-          if(r.kids>0)det.push(r.kids+' enfant'+(r.kids>1?'s':''));
-          if(r.note)det.push('« '+r.note+' »');
-          return '<div><span class="who">'+esc(r.name)+'</span> — '+
-            (r.choice==='oui'?'présent(e)':r.choice==='non'?'absent(e)':'peut-être')+
-            (det.length?'<div class="det">'+esc(det.join(' · '))+'</div>':'')+'</div>';
-        }).join('')||'<div>Aucune réponse pour l’instant.</div>')+'</div>';
-    }).catch(offline);
-  });
   paintStands();
   if(ONLINE){
     fetchStands();
     setInterval(function(){
-      if(document.getElementById('tab-stands').classList.contains('active')&&!document.hidden)fetchStands();
+      if(document.getElementById('tab-stands').classList.contains('active')&&!document.hidden){fetchStands();fetchMyOrders()}
     },20000);
   }
+
+  /* ---------- Cocktails ---------- */
+  var COCKTAILS=[
+    {n:'Cocktail Lynn',d:'La création signature — litchi, rose & bulles',a:false},
+    {n:'Bissap royal',d:'Bissap frais, menthe, citron vert',a:false},
+    {n:'Gingembre punch',d:'Jus de gingembre relevé, ananas',a:false},
+    {n:'Virgin colada',d:'Ananas & lait de coco, tout en douceur',a:false},
+    {n:'Mojito',d:'Rhum, menthe fraîche, citron vert',a:true},
+    {n:'Whisky sour',d:'Whisky, citron, une pointe de sucre',a:true}
+  ];
+  var selCk=null,myOrders=load('lynn40_orders',[]);
+  function ckClosed(){return st.cocktail&&st.cocktail.s==='off'}
+  function updateOrderBtn(){
+    var b=document.getElementById('c-order');
+    b.disabled=ckClosed()||selCk==null;
+    b.textContent=ckClosed()?'Stand fermé pour le moment':(selCk==null?'Choisissez un cocktail':'Commander : '+COCKTAILS[selCk].n);
+  }
+  function paintCocktails(){
+    var el=document.getElementById('cocktails');
+    el.innerHTML=COCKTAILS.map(function(c,i){
+      return '<div class="ck'+(selCk===i?' sel':'')+'" data-i="'+i+'" role="button" tabindex="0">'+
+        '<div class="row"><div><p class="name">'+esc(c.n)+'</p><p class="desc">'+esc(c.d)+'</p></div>'+
+        '<span class="badge '+(c.a?'warn':'ok')+'">'+(c.a?'Avec alcool':'Sans alcool')+'</span></div></div>';
+    }).join('');
+    el.querySelectorAll('.ck').forEach(function(d){
+      function pick(){selCk=+d.dataset.i;paintCocktails()}
+      d.addEventListener('click',pick);
+      d.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick()}});
+    });
+    updateOrderBtn();
+  }
+  function paintMyOrders(list){
+    document.getElementById('my-orders').innerHTML=list.length?
+      '<label>Mes commandes</label><div class="myord">'+list.map(function(o){
+        return '<div><span>'+esc(o.cocktail)+'</span><span class="badge '+(o.status==='servie'?'ok':'warn')+'">'+
+          (o.status==='servie'?'Servie ✓':'En préparation…')+'</span></div>';
+      }).join('')+'</div>':'';
+  }
+  function fetchMyOrders(){
+    if(!ONLINE){paintMyOrders(myOrders);return}
+    api('GET','cocktail_orders?select=cocktail,status&device_id=eq.'+deviceId+'&order=created_at.desc&limit=10')
+      .then(paintMyOrders).catch(function(){});
+  }
+  document.getElementById('c-order').addEventListener('click',function(){
+    var name=document.getElementById('c-name').value.trim();
+    if(!name){toast('Indiquez votre prénom');return}
+    if(selCk==null)return;
+    var c=COCKTAILS[selCk];
+    function done(){selCk=null;paintCocktails();fetchMyOrders();toast('Commande envoyée — santé ! 🍸')}
+    if(ONLINE){
+      api('POST','cocktail_orders',{cocktail:c.n,guest_name:name,device_id:deviceId},'return=minimal')
+        .then(done).catch(offline);
+    }else{
+      myOrders.unshift({cocktail:c.n,status:'attente'});save('lynn40_orders',myOrders);done();
+    }
+  });
+  if(rsvp.name){document.getElementById('c-name').value=rsvp.name.split(' ')[0]}
+  paintCocktails();
+  fetchMyOrders();
 
   /* ---------- Playlist ---------- */
   var songs=load('lynn40_songs',[
