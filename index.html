@@ -111,6 +111,7 @@
   .recap-list .who{font-weight:600}
   .recap-list .det{color:var(--ink-soft);font-size:12px;margin-top:2px}
 
+  .signature-bar{font-family:'Segoe Script','Brush Script MT',cursive;color:var(--gold);font-size:15px;text-align:center;margin:-6px 0 10px}
   .ck{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:8px;background:#fff;cursor:pointer}
   .ck.sel{border-color:var(--rose);background:var(--blush)}
   .myord div{display:flex;justify-content:space-between;align-items:center;font-family:system-ui,sans-serif;font-size:13px;padding:7px 0;border-bottom:1px solid var(--line)}
@@ -213,7 +214,8 @@
         <p class="stands-hint" id="stands-hint">Le jour J, les statuts sont mis à jour en direct par l'organisateur.</p>
       </div>
       <div class="card">
-        <h2>🍸 La carte des cocktails</h2>
+        <h2>⚜️ Drink signature ⚜️</h2>
+        <p class="signature-bar">Le Baratie · Mixology experience</p>
         <p class="stands-hint" style="margin:0 0 4px;text-align:left">Touchez votre cocktail, indiquez votre prénom — il vous attendra au stand.</p>
         <div id="cocktails"></div>
         <label for="c-name">Votre prénom</label>
@@ -378,7 +380,7 @@ var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
   /* ---------- Stands ---------- */
   var STANDS=[
     {id:'dibi',n:'🔥 Dibiterie',d:'Brochettes & dibi au feu de bois — le stand vedette',star:true},
-    {id:'cocktail',n:'🍸 Stand cocktails',d:'Avec ou sans alcool — commandez depuis l’app, carte ci-dessous'},
+    {id:'cocktail',n:'🍸 Stand cocktails',d:'Le Baratie — commandez depuis l’app, carte ci-dessous'},
     {id:'jus',n:'🍹 Bar à jus & bissap',d:'Bissap, gingembre, jus frais'},
     {id:'champ',n:'🥂 Champagne & douceurs',d:'Bulles et mignardises, comme sur le carton'},
     {id:'cake',n:'🎂 Le gâteau de Lynn',d:'Cérémonie du gâteau'},
@@ -429,12 +431,10 @@ var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 
   /* ---------- Cocktails ---------- */
   var COCKTAILS=[
-    {n:'Cocktail Lynn',d:'La création signature — litchi, rose & bulles',a:false},
-    {n:'Bissap royal',d:'Bissap frais, menthe, citron vert',a:false},
-    {n:'Gingembre punch',d:'Jus de gingembre relevé, ananas',a:false},
-    {n:'Virgin colada',d:'Ananas & lait de coco, tout en douceur',a:false},
-    {n:'Mojito',d:'Rhum, menthe fraîche, citron vert',a:true},
-    {n:'Whisky sour',d:'Whisky, citron, une pointe de sucre',a:true}
+    {n:'Tropical Sunset',d:'Purée de passion, jus d’ananas, sirop de vanille, jus de carotte',a:false},
+    {n:'Fresh Up',d:'Infusion d’hibiscus, thé framboise, purée pêche-abricot',a:false},
+    {n:'Mojito berries',d:'Purée de fruits rouges, citron vert, sucre de canne, menthe, eau pétillante, rhum blanc',a:true},
+    {n:'Tentation',d:'Purée de yuzu, jus de mandarine, jus de goyave, rhum brun',a:true}
   ];
   var selCk=null,myOrders=load('lynn40_orders',[]);
   function ckClosed(){return st.cocktail&&st.cocktail.s==='off'}
