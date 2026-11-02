@@ -19,6 +19,8 @@ le curseur, dans n'importe quelle application. Le modèle est celui de Wispr Flo
 1. **Enregistrement** : WAV PCM 16 bits, **16 kHz, mono**, dans un fichier temporaire.
    - Durée maximale : **12 min**. Au-delà, arrêt automatique et transcription (la limite OpenAI est de 25 Mo).
    - Durée minimale : **0,3 s**. En dessous, on abandonne sans appel réseau et sans erreur.
+   - Audio **entièrement silencieux** (aucun échantillon non nul) : pas d'appel réseau, erreur expliquant que le micro
+     est probablement bloqué (sous Windows, l'accès refusé au micro produit du silence numérique sans erreur).
 2. **Transcription** : `POST https://api.openai.com/v1/audio/transcriptions`, en multipart/form-data :
    - `model` : réglage « Modèle » (défaut `gpt-4o-transcribe`) ;
    - `response_format=json` ;
@@ -63,6 +65,9 @@ Si le vocabulaire n'est pas vide, ajouter une ligne :
 | Modèle de nettoyage | `cleanupModel` | `gpt-4o-mini` |
 
 Une valeur vide ou faite uniquement d'espaces pour `model` ou `cleanupModel` revient à la valeur par défaut.
+
+Sur iOS et macOS, ces clés sont stockées avec le préfixe `dictee.settings.` dans UserDefaults (ex. `dictee.settings.model`).
+Sous Windows, elles figurent telles quelles (camelCase) dans `%APPDATA%\Dictee\settings.json`.
 
 Réglages propres aux ordinateurs (macOS et Windows) :
 

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- App de zone de notification Windows (WinForms). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Permet de compiler depuis Linux ou macOS (l'exécution reste réservée à Windows). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationVisualStyles>true</ApplicationVisualStyles>
+    <ApplicationUseCompatibleTextRendering>false</ApplicationUseCompatibleTextRendering>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>Dictee</AssemblyName>
+    <RootNamespace>Dictee.Windows</RootNamespace>
+    <AssemblyTitle>Dictée</AssemblyTitle>
+    <SatelliteResourceLanguages>fr</SatelliteResourceLanguages>
+    <!-- Publication en un seul .exe autonome (voir HANDOFF.md). -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- Divise la taille de l'exe autonome par deux environ ; décompression en mémoire au lancement. -->
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Dictee.Core\Dictee.Core.csproj" />
+  </ItemGroup>
+</Project>

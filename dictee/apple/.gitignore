@@ -2,8 +2,15 @@
 Dictee.xcodeproj/
 App/Info.plist
 Keyboard/Info.plist
+Mac/Info.plist
 # Xcode
 DerivedData/
 build/
 xcuserdata/
 *.xcuserstate
+# Produits d'archive et de notarisation (voir HANDOFF.md)
+*.xcarchive
+*.app
+*.zip
+# macOS
+.DS_Store

@@ -1,0 +1,70 @@
+name: Dictée
+
+on:
+  push:
+    paths:
+      - "dictee/**"
+      - ".github/workflows/dictee.yml"
+  pull_request:
+    paths:
+      - "dictee/**"
+  workflow_dispatch:
+
+concurrency:
+  group: dictee-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows (build, tests, exe)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: dictee/windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Tests
+        run: dotnet test Dictee.sln -c Release
+      - name: Publication (exe autonome)
+        run: dotnet publish src/Dictee.Windows/Dictee.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dictee-Windows-x64
+          path: dictee/windows/publish/
+
+  apple:
+    name: iOS + macOS (build, tests)
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: dictee/apple
+    steps:
+      - uses: actions/checkout@v4
+      - name: XcodeGen
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Build macOS
+        run: |
+          set -o pipefail
+          xcodebuild -project Dictee.xcodeproj -scheme DicteeMac \
+            -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build | tail -n 200
+      - name: Tests macOS
+        run: |
+          set -o pipefail
+          xcodebuild -project Dictee.xcodeproj -scheme DicteeMac -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= ENABLE_HARDENED_RUNTIME=NO test | tail -n 200
+      - name: Build iOS
+        run: |
+          set -o pipefail
+          xcodebuild -project Dictee.xcodeproj -scheme Dictee \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -n 200
+      - name: Tests iOS (simulateur)
+        run: |
+          set -o pipefail
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
+          xcodebuild -project Dictee.xcodeproj -scheme Dictee \
+            -destination "id=$DEVICE_ID" CODE_SIGNING_ALLOWED=NO test | tail -n 200

@@ -14,7 +14,7 @@ struct OpenAIClient {
         var errorDescription: String? {
             switch self {
             case .missingAPIKey:
-                return "Clé API OpenAI manquante. Ajoutez-la dans l'app Dictée."
+                return "Clé API OpenAI manquante. Ajoutez-la dans les réglages de Dictée."
             case let .http(status, message):
                 return "Erreur OpenAI (\(status)) : \(message)"
             case .invalidResponse:
@@ -163,7 +163,8 @@ struct OpenAIClient {
         if let decoded = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
             return decoded.error.message
         }
-        return String(data: data.prefix(300), encoding: .utf8) ?? "erreur inconnue"
+        // 300 caractères (pas octets) : une coupure au milieu d'un caractère UTF-8 ne doit pas tout perdre.
+        return String(String(decoding: data, as: UTF8.self).prefix(300))
     }
 
     static func mimeType(for filename: String) -> String {

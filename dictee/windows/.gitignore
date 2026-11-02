@@ -1,0 +1,7 @@
+# Sorties de compilation .NET
+bin/
+obj/
+publish/
+TestResults/
+*.user
+.vs/

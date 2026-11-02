@@ -1,0 +1,16 @@
+<Project>
+  <!-- Réglages communs à tous les projets de la solution. -->
+  <PropertyGroup>
+    <!-- Version figée : la CI (windows-latest) peut compiler avec un SDK plus récent que le .NET 8 testé. -->
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <!-- Symboles dans les binaires : pas de .pdb à côté de l'exe publié. -->
+    <DebugType>embedded</DebugType>
+    <Company>Dictée</Company>
+    <Product>Dictée</Product>
+    <Version>1.0.0</Version>
+    <NeutralLanguage>fr-FR</NeutralLanguage>
+  </PropertyGroup>
+</Project>
