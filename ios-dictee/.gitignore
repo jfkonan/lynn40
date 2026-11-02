@@ -1,0 +1,9 @@
+# Généré par XcodeGen à partir de project.yml
+Dictee.xcodeproj/
+App/Info.plist
+Keyboard/Info.plist
+# Xcode
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate

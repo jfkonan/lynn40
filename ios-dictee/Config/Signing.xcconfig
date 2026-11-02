@@ -1,0 +1,10 @@
+// Réglages de signature : le SEUL fichier à modifier avant de compiler.
+//
+// DEVELOPMENT_TEAM : identifiant d'équipe Apple (10 caractères),
+//   visible dans Xcode > Settings > Accounts, ou sur developer.apple.com > Membership.
+// BUNDLE_ID_PREFIX : préfixe unique en notation inversée (ex. com.jfkonan).
+// APP_GROUP_ID     : doit commencer par "group." et être identique pour l'app et le clavier.
+
+DEVELOPMENT_TEAM =
+BUNDLE_ID_PREFIX = com.jfkonan
+APP_GROUP_ID = group.$(BUNDLE_ID_PREFIX).dictee
