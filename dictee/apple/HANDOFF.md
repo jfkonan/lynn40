@@ -29,12 +29,14 @@ L'app rafraîchit `sessionExpiresAt` toutes les 2 s. Le clavier considère la se
 ## Arborescence
 
 ```
-ios-dictee/
+dictee/apple/
 ├── project.yml              # définition XcodeGen (source de vérité du projet)
 ├── Config/Signing.xcconfig  # équipe Apple, préfixe de bundle, App Group  ← à remplir
-├── App/                     # cible Dictee
+├── App/                     # cible Dictee (iOS)
+├── Core/                    # code portable iOS + macOS (OpenAI, Trousseau, enregistreur WAV)
 ├── Keyboard/                # cible DicteeKeyboard
-├── Shared/                  # compilé dans les deux cibles
+├── Mac/                     # cible DicteeMac (app de barre des menus macOS)
+├── Shared/                  # état partagé, compilé dans toutes les cibles
 └── Tests/                   # DicteeTests
 ```
 
@@ -58,7 +60,7 @@ Demande l'identifiant d'équipe à l'utilisateur si tu ne peux pas le trouver.
 
 ### 3. Génération et compilation
 ```bash
-cd ios-dictee
+cd dictee/apple
 xcodegen generate
 xcodebuild -project Dictee.xcodeproj -scheme Dictee \
   -destination 'platform=iOS Simulator,name=iPhone 15' build
@@ -132,6 +134,6 @@ Note chaque point comme OK, KO ou partiel, et décris les problèmes rencontrés
 ## Ce qu'il faut rendre
 
 1. Les corrections de compilation, en commits courts et explicites, sur la branche `claude/clavier-dictee-ios`.
-2. La check-list ci-dessus remplie, dans un fichier `ios-dictee/RECETTE.md` daté.
+2. La check-list ci-dessus remplie, dans un fichier `dictee/apple/RECETTE.md` daté.
 3. Pour chaque point KO : symptôme, cause probable, correctif appliqué ou proposé.
 4. Des captures d’écran du clavier en mode clair et en mode sombre si possible.

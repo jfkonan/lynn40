@@ -1,5 +1,5 @@
 # Projet XcodeGen : génère Dictee.xcodeproj.
-#   brew install xcodegen && cd ios-dictee && xcodegen generate
+#   brew install xcodegen && cd dictee/apple && xcodegen generate
 name: Dictee
 
 options:
@@ -27,6 +27,7 @@ targets:
     platform: iOS
     sources:
       - path: App
+      - path: Core
       - path: Shared
     dependencies:
       - target: DicteeKeyboard
