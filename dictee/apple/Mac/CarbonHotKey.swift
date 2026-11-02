@@ -38,7 +38,7 @@ final class CarbonHotKey {
         let installStatus = InstallEventHandler(
             GetApplicationEventTarget(),
             carbonHotKeyHandler,
-            ItemCount(eventTypes.count),
+            eventTypes.count,
             &eventTypes,
             userData,
             &handlerRef
@@ -108,7 +108,7 @@ private func carbonHotKeyHandler(
         EventParamName(kEventParamDirectObject),
         EventParamType(typeEventHotKeyID),
         nil,
-        ByteCount(MemoryLayout<EventHotKeyID>.size),
+        MemoryLayout<EventHotKeyID>.size,
         nil,
         &receivedID
     )
