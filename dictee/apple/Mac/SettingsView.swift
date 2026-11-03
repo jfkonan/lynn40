@@ -23,6 +23,8 @@ struct SettingsView: View {
     private var vocabulary = SharedStore.Default.vocabulary
     @AppStorage(SharedStore.Key.cleanupEnabled, store: SharedStore.shared.defaults)
     private var cleanupEnabled = SharedStore.Default.cleanupEnabled
+    @AppStorage(SharedStore.Key.writingStyle, store: SharedStore.shared.defaults)
+    private var writingStyle: WritingStyle = SharedStore.Default.writingStyle
     @AppStorage(SharedStore.Key.cleanupModel, store: SharedStore.shared.defaults)
     private var cleanupModel = SharedStore.Default.cleanupModel
 
@@ -156,13 +158,18 @@ struct SettingsView: View {
     private var cleanupSection: some View {
         Section {
             Toggle("Nettoyer le texte", isOn: $cleanupEnabled)
-            if cleanupEnabled {
+            Picker("Style d'écriture", selection: $writingStyle) {
+                ForEach(WritingStyle.allCases) { style in
+                    Text(style.label).tag(style)
+                }
+            }
+            if TranscriptionRules.isCleanupRequested(enabled: cleanupEnabled, style: writingStyle) {
                 TextField("Modèle de nettoyage", text: $cleanupModel)
             }
         } header: {
             Text("Mise au propre")
         } footer: {
-            Text("Second appel qui ponctue et retire les « euh » sans reformuler. Ajoute un peu de délai et de coût. Il passe toujours par OpenAI, avec la clé OpenAI, quel que soit le fournisseur ; sans clé OpenAI, il est sauté.")
+            Text("Second appel qui ponctue et retire les « euh » sans reformuler. Ajoute un peu de délai et de coût. Il passe toujours par OpenAI, avec la clé OpenAI, quel que soit le fournisseur ; sans clé OpenAI, il est sauté. Un style autre que « Brut » active ce second appel même si « Nettoyer le texte » est désactivé.")
         }
     }
 
@@ -222,9 +229,12 @@ struct SettingsView: View {
             .foregroundColor(granted ? .green : .red)
     }
 
-    /// Clé du fournisseur choisi, plus celle d'OpenAI si le nettoyage est activé.
+    /// Clé du fournisseur choisi, plus celle d'OpenAI si le nettoyage est demandé (réglage ou style autre que « Brut »).
     private var keyProviders: [TranscriptionProvider] {
-        TranscriptionProvider.providersNeedingKeys(selected: provider, cleanupEnabled: cleanupEnabled)
+        TranscriptionProvider.providersNeedingKeys(
+            selected: provider,
+            cleanupEnabled: TranscriptionRules.isCleanupRequested(enabled: cleanupEnabled, style: writingStyle)
+        )
     }
 
     private var providerFooter: String {

@@ -2,6 +2,7 @@ import Foundation
 
 /// Fournisseur de transcription (SPEC §2 bis), choisi par le réglage `provider`.
 /// La valeur brute est celle stockée dans UserDefaults (`dictee.settings.provider`).
+/// Dans `Shared/` (Foundation seulement) car le panneau rapide du clavier permet aussi de le choisir.
 enum TranscriptionProvider: String, CaseIterable, Identifiable, Sendable {
     case openai
     case mistral
@@ -77,7 +78,7 @@ enum TranscriptionProvider: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// Clés à proposer dans les réglages : celle du fournisseur choisi, plus celle d'OpenAI si le nettoyage
-    /// est activé (le nettoyage passe toujours par OpenAI, SPEC §2.3).
+    /// est demandé (le nettoyage passe toujours par OpenAI, SPEC §2.3). Passer `cleanupEnabled || style ≠ brut`.
     static func providersNeedingKeys(selected: TranscriptionProvider, cleanupEnabled: Bool) -> [TranscriptionProvider] {
         if cleanupEnabled, selected != .openai {
             return [selected, .openai]

@@ -83,15 +83,19 @@ struct OpenAIClient {
 
     // MARK: - Nettoyage (optionnel)
 
-    /// Ponctue et retire les hésitations sans reformuler.
-    func cleanUp(text: String, model: String, vocabulary: String) async throws -> String {
-        let request = try Self.makeCleanupRequest(baseURL: baseURL, apiKey: apiKey, text: text, model: model, vocabulary: vocabulary)
+    /// Ponctue et retire les hésitations sans reformuler ; applique le style d'écriture s'il n'est pas `brut`.
+    func cleanUp(text: String, model: String, vocabulary: String, style: WritingStyle = .brut) async throws -> String {
+        let request = try Self.makeCleanupRequest(
+            baseURL: baseURL, apiKey: apiKey, text: text, model: model, vocabulary: vocabulary, style: style
+        )
         let (data, response) = try await session.data(for: request)
         try Self.validate(response: response, data: data)
         return try Self.parseChat(data)
     }
 
-    static func cleanupInstructions(vocabulary: String) -> String {
+    /// Consignes de nettoyage (SPEC §2, texte exact) : la ligne de vocabulaire si le vocabulaire n'est pas vide,
+    /// puis, **après** elle, la ligne du style d'écriture s'il n'est pas `brut`.
+    static func cleanupInstructions(vocabulary: String, style: WritingStyle = .brut) -> String {
         var rules = """
         Tu reçois la transcription brute d'une dictée. Ta seule tâche est de la mettre au propre.
         Règles :
@@ -106,15 +110,25 @@ struct OpenAIClient {
         if !vocab.isEmpty {
             rules += "\n- Orthographie exactement ces termes s'ils apparaissent : \(vocab)."
         }
+        if let styleLine = style.cleanupInstruction {
+            rules += "\n" + styleLine
+        }
         return rules
     }
 
-    static func makeCleanupRequest(baseURL: URL, apiKey: String, text: String, model: String, vocabulary: String) throws -> URLRequest {
+    static func makeCleanupRequest(
+        baseURL: URL,
+        apiKey: String,
+        text: String,
+        model: String,
+        vocabulary: String,
+        style: WritingStyle = .brut
+    ) throws -> URLRequest {
         guard !apiKey.isEmpty else { throw ClientError.missingAPIKey }
         var payload: [String: Any] = [
             "model": model,
             "messages": [
-                ["role": "system", "content": cleanupInstructions(vocabulary: vocabulary)],
+                ["role": "system", "content": cleanupInstructions(vocabulary: vocabulary, style: style)],
                 ["role": "user", "content": text],
             ],
         ]
@@ -169,6 +183,25 @@ struct OpenAIClient {
         case "mp3": return "audio/mpeg"
         case "webm": return "audio/webm"
         default: return "application/octet-stream"
+        }
+    }
+}
+
+// MARK: - Style d'écriture (SPEC §2, « Style d'écriture »)
+
+extension WritingStyle {
+    /// Ligne ajoutée à la fin des consignes de nettoyage (texte exact du cahier des charges) ; `nil` pour `brut`.
+    /// Elle prime sur la règle « Ne reformule pas » pour le registre uniquement.
+    var cleanupInstruction: String? {
+        switch self {
+        case .brut:
+            return nil
+        case .formel:
+            return "- Style demandé : formel et professionnel. Tu peux ajuster le registre (vocabulaire, tournures) pour un ton soutenu, sans changer le sens, sans résumer et sans rien ajouter."
+        case .courriel:
+            return "- Style demandé : courriel. Paragraphes courts, ton courtois. N'ajoute une formule d'appel ou de politesse que si elle est dictée. Ne change pas le sens, ne résume pas, n'ajoute rien."
+        case .decontracte:
+            return "- Style demandé : naturel et décontracté. Phrases simples, ton direct, sans changer le sens, sans résumer et sans rien ajouter."
         }
     }
 }

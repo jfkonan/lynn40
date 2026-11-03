@@ -256,6 +256,28 @@ final class SharedCodeOnMacTests: XCTestCase {
         )
     }
 
+    func testCleanupInstructionsAddStyleLineAfterVocabulary() {
+        let withVocabulary = OpenAIClient.cleanupInstructions(vocabulary: "OHADA", style: .formel)
+        let lines = withVocabulary.components(separatedBy: "\n")
+        XCTAssertEqual(lines.suffix(2), [
+            "- Orthographie exactement ces termes s'ils apparaissent : OHADA.",
+            "- Style demandé : formel et professionnel. Tu peux ajuster le registre (vocabulaire, tournures) pour un ton soutenu, sans changer le sens, sans résumer et sans rien ajouter.",
+        ])
+        XCTAssertEqual(OpenAIClient.cleanupInstructions(vocabulary: "OHADA", style: .brut), OpenAIClient.cleanupInstructions(vocabulary: "OHADA"))
+        // Défaut `brut` sur Mac : sans effet tant que le réglage n'est pas changé.
+        let suite = "dictee-mac-style-\(UUID().uuidString)"
+        let store = SharedStore(defaults: UserDefaults(suiteName: suite))
+        XCTAssertEqual(store.writingStyle, .brut)
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    func testCleanupRunsWhenEnabledOrStyleIsNotBrut() {
+        XCTAssertFalse(TranscriptionRules.isCleanupRequested(enabled: false, style: .brut))
+        XCTAssertTrue(TranscriptionRules.isCleanupRequested(enabled: false, style: .courriel))
+        XCTAssertTrue(TranscriptionRules.shouldCleanUp(enabled: false, style: .decontracte, raw: "bonjour", openAIKey: "sk-test"))
+        XCTAssertFalse(TranscriptionRules.shouldCleanUp(enabled: false, style: .decontracte, raw: "bonjour", openAIKey: nil))
+    }
+
     func testErrorMessageReadsOpenAIErrorOrFallsBackTo300Characters() {
         XCTAssertEqual(
             OpenAIClient.errorMessage(from: Data(#"{"error":{"message":"Invalid API key"}}"#.utf8)),

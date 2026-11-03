@@ -3,7 +3,7 @@
 Dictée transcrit votre voix avec **votre propre clé API**, sur le principe de Wispr Flow, et insère le texte
 là où se trouve le curseur. Trois fournisseurs de transcription au choix : **OpenAI** (par défaut), **Mistral**
 (hébergé dans l'UE) ou **Microsoft** (Azure, MAI-Transcribe-2, en preview). Ce dossier contient deux versions :
-- **iPhone** : un clavier de dictée (ci-dessous) ;
+- **iPhone** : un clavier AZERTY complet avec une barre de dictée (ci-dessous) ;
 - **Mac** : une app de barre des menus (voir « Sur Mac » plus bas).
 
 Le comportement commun est décrit dans [`../SPEC.md`](../SPEC.md).
@@ -12,7 +12,7 @@ Le comportement commun est décrit dans [`../SPEC.md`](../SPEC.md).
 
 iOS interdit aux claviers d'utiliser le micro. Dictée est donc composée de deux éléments :
 - **l'app Dictée**, qui écoute, envoie l'audio au fournisseur choisi et garde vos clés ;
-- **le clavier Dictée**, qui affiche un gros bouton micro et insère le texte.
+- **le clavier Dictée**, un clavier AZERTY complet surmonté d'une barre de dictée, qui insère le texte.
 
 Le principe est celui de Wispr Flow : vous démarrez une « session » une fois, puis vous dictez dans n'importe quelle app sans la quitter.
 
@@ -26,6 +26,29 @@ Le principe est celui de Wispr Flow : vous démarrez une « session » une fois,
    - Touchez le micro, parlez, puis retouchez-le : le texte s'insère au curseur.
 4. La session s'arrête seule après 10 minutes sans dictée. Ce délai est réglable.
 
+## Le clavier
+
+- **Barre supérieure** : ☰ ouvre le panneau rapide ; la pastille blanche affiche le style d'écriture (« Brut. »,
+  « Formel. »…) et, pendant la dictée, « Écoute… » puis « Transcription… » ; le micro (cercle noir) démarre et arrête
+  la dictée. Il devient rouge pendant l'écoute ; un appui long l'annule.
+- **Touches AZERTY** comme sur iOS : majuscule (double toucher = verrouillage), majuscule automatique, double espace = « . »,
+  effacement répété, accents par appui long (é è ê ë, à â æ, ç, ù û ü, î ï, ô œ, ÿ), claviers `123` et `#+=`.
+  La barre d'espace affiche « Dictée ».
+- **Panneau rapide** : réinsérer une des 10 dernières transcriptions, effacer l'historique, changer le style,
+  le fournisseur ou la langue, ouvrir l'app.
+
+## Styles d'écriture
+
+| Style | Effet |
+|---|---|
+| Brut (défaut) | Texte tel que transcrit (nettoyé seulement si « Nettoyer le texte » est activé) |
+| Formel | Registre soutenu et professionnel, sans changer le sens |
+| Courriel | Paragraphes courts, ton courtois ; formule de politesse seulement si elle est dictée |
+| Décontracté | Phrases simples, ton direct |
+
+Un style autre que « Brut » passe par le nettoyage chez OpenAI, avec la clé OpenAI (même si le fournisseur de
+transcription est Mistral ou Microsoft). Sans clé OpenAI, le texte brut est inséré.
+
 ## Réglages
 
 | Réglage | Par défaut | Rôle |
@@ -38,6 +61,7 @@ Le principe est celui de Wispr Flow : vous démarrez une « session » une fois,
 | Langue | `fr` | Code ISO de la langue parlée |
 | Vocabulaire | sigles OHADA, termes de droit des sociétés | Aide le modèle à bien orthographier vos termes (Mistral et Microsoft : 100 termes au maximum) |
 | Nettoyer le texte | désactivé | Ponctue et retire les « euh » sans reformuler (second appel, `gpt-4o-mini`, toujours chez OpenAI avec la clé OpenAI ; sauté sans clé OpenAI) |
+| Style d'écriture | Brut | Brut, Formel, Courriel ou Décontracté ; se règle dans l'app ou depuis le clavier |
 
 Chaque fournisseur a sa propre clé, rangée dans le Trousseau. Les noms de modèles et le format de l'API Azure
 sont à confirmer lors des premiers essais (voir [HANDOFF.md](HANDOFF.md)).
@@ -46,7 +70,9 @@ sont à confirmer lors des premiers essais (voir [HANDOFF.md](HANDOFF.md)).
 
 - Vos clés API restent dans le Trousseau de l'iPhone.
 - L'audio est envoyé uniquement au fournisseur choisi (OpenAI, Mistral ou Microsoft), avec votre clé. Il est supprimé
-  du téléphone juste après la transcription. Le texte n'est envoyé à OpenAI que si le nettoyage est activé.
+  du téléphone juste après la transcription. Le texte n'est envoyé à OpenAI que si le nettoyage est activé ou si un style autre que « Brut » est choisi.
+- Les 10 dernières transcriptions restent sur l'iPhone (espace partagé entre l'app et le clavier) ; « Effacer l'historique »,
+  dans l'app ou le panneau du clavier, les supprime.
 - Pendant une session, iOS affiche le point orange du micro.
 
 ## Sur Mac

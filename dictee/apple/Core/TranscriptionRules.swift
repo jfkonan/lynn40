@@ -34,6 +34,17 @@ enum TranscriptionRules {
         shouldCleanUp(enabled: enabled, raw: raw) && !trimmed(openAIKey ?? "").isEmpty
     }
 
+    /// Le nettoyage est-il demandé ? Oui si « Nettoyer le texte » est activé **ou** si le style d'écriture
+    /// n'est pas `brut` (SPEC §2, « Style d'écriture »). Sert aussi à proposer la clé OpenAI dans les réglages.
+    static func isCleanupRequested(enabled: Bool, style: WritingStyle) -> Bool {
+        enabled || style != .brut
+    }
+
+    /// Variante complète : nettoyage demandé (réglage ou style), texte non vide et clé OpenAI présente.
+    static func shouldCleanUp(enabled: Bool, style: WritingStyle, raw: String, openAIKey: String?) -> Bool {
+        shouldCleanUp(enabled: isCleanupRequested(enabled: enabled, style: style), raw: raw, openAIKey: openAIKey)
+    }
+
     /// Texte final (SPEC §2.3 et §2.4) : le texte nettoyé s'il n'est pas vide, sinon le texte brut.
     /// `cleaned` vaut `nil` si le nettoyage est désactivé ou a échoué. Texte final vide : `RuleError.noSpeech`.
     static func finalText(raw: String, cleaned: String?) throws -> String {

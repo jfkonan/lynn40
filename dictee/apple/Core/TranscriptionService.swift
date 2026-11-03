@@ -143,20 +143,22 @@ enum TranscriptionService {
     }
 
     /// Nettoyage optionnel (SPEC §2.3), toujours chez OpenAI avec la clé OpenAI, quel que soit le fournisseur.
-    /// Renvoie `nil` si le nettoyage est désactivé, inutile (texte vide), sans clé OpenAI, ou en échec :
+    /// Il s'exécute si `enabled` est vrai **ou** si le style d'écriture n'est pas `brut` (SPEC §2, « Style d'écriture »).
+    /// Renvoie `nil` s'il n'est pas demandé, inutile (texte vide), sans clé OpenAI, ou en échec :
     /// `TranscriptionRules.finalText` garde alors le texte brut.
     static func cleanUp(
         raw: String,
         enabled: Bool,
+        style: WritingStyle = .brut,
         model: String,
         vocabulary: String,
         openAIKey: String?,
         session: URLSession = .shared
     ) async -> String? {
-        guard TranscriptionRules.shouldCleanUp(enabled: enabled, raw: raw, openAIKey: openAIKey),
+        guard TranscriptionRules.shouldCleanUp(enabled: enabled, style: style, raw: raw, openAIKey: openAIKey),
               let key = ProviderKeys(openAI: openAIKey).key(for: .openai) else { return nil }
         let client = OpenAIClient(apiKey: key, session: session)
-        return try? await client.cleanUp(text: raw, model: model, vocabulary: vocabulary)
+        return try? await client.cleanUp(text: raw, model: model, vocabulary: vocabulary, style: style)
     }
 
     // MARK: - Vocabulaire et langue
@@ -407,8 +409,7 @@ enum TranscriptionService {
 // MARK: - Réglages de transcription lus dans SharedStore
 
 extension SharedStore {
-    /// Fournisseur choisi : valeur inconnue ou vide → OpenAI (SPEC §3).
-    var provider: TranscriptionProvider { TranscriptionProvider(storedValue: providerSetting) }
+    // `provider` (avec repli sur OpenAI) est défini dans Shared/SharedStore.swift : le clavier l'écrit aussi.
 
     /// Réglages de transcription, avec repli sur les valeurs par défaut pour les modèles et la région.
     var transcriptionSettings: TranscriptionSettings {

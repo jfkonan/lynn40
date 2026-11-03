@@ -16,8 +16,8 @@ Ce dossier contient la version iOS (clavier) et la version macOS (barre des menu
 | Cible | Plateforme | Rôle |
 |---|---|---|
 | `Dictee` (app) | iOS | Session audio en arrière-plan, enregistrement, appel au fournisseur de transcription, réglages, clés API dans le Trousseau |
-| `DicteeKeyboard` (extension) | iOS | Bouton micro, insertion du texte, touches de base (espace, effacer, retour, ponctuation, globe) |
-| `DicteeTests` | iOS | Tests unitaires de la logique sans matériel (multipart, requêtes OpenAI, Mistral et Azure, parseurs, état partagé, insertion) |
+| `DicteeKeyboard` (extension) | iOS | Clavier AZERTY complet (lettres, 123, #+=, accents) avec barre de dictée : ☰ (panneau rapide), pastille de style, micro ; insertion du texte |
+| `DicteeTests` | iOS | Tests unitaires de la logique sans matériel (multipart, requêtes OpenAI, Mistral et Azure, parseurs, état partagé, insertion, logique du clavier AZERTY, style d'écriture, historique) |
 | `DicteeMac` (app) | macOS 13+ | App de barre des menus : raccourci global, enregistrement, transcription, collage au curseur (voir section « macOS ») |
 | `DicteeMacTests` | macOS | Tests unitaires Mac sans matériel (raccourcis, presse-papiers, réglages, règles du pipeline, requêtes des trois fournisseurs) |
 
@@ -26,8 +26,8 @@ Flux d'une dictée sur iOS :
 1. Clavier, micro touché sans session → ouvre `dictee://start` → l'app démarre `AVAudioEngine` (mode audio en arrière-plan).
 2. L'utilisateur revient à son app (« ‹ » en haut à gauche).
 3. Micro touché → notification Darwin `startRecording` → l'app écrit les tampons dans un WAV 16 kHz mono.
-4. Micro retouché → `stopRecording` → l'app envoie le fichier au fournisseur choisi (`TranscriptionService.transcribe`), puis, si l'option est active, nettoie le texte via `chat/completions` chez OpenAI.
-5. L'app écrit la `Transcript` dans les UserDefaults de l'App Group et poste `transcriptReady` → le clavier insère le texte via `textDocumentProxy`.
+4. Micro retouché → `stopRecording` → l'app envoie le fichier au fournisseur choisi (`TranscriptionService.transcribe`), puis, si « Nettoyer le texte » est actif **ou** si le style d'écriture n'est pas « Brut », nettoie le texte via `chat/completions` chez OpenAI (consignes + ligne du style, SPEC §2).
+5. L'app écrit la `Transcript` dans les UserDefaults de l'App Group (et l'ajoute à l'historique des 10 dernières) et poste `transcriptReady` → le clavier insère le texte via `textDocumentProxy`.
 
 L'app rafraîchit `sessionExpiresAt` toutes les 2 s. Le clavier considère la session morte si cette date est dépassée.
 
@@ -38,10 +38,11 @@ dictee/apple/
 ├── project.yml              # définition XcodeGen (source de vérité du projet)
 ├── Config/Signing.xcconfig  # équipe Apple, préfixe de bundle, App Group  ← à remplir
 ├── App/                     # cible Dictee (iOS)
-├── Core/                    # code portable iOS + macOS (fournisseurs de transcription, OpenAI, Trousseau, enregistreur WAV, règles du pipeline)
-├── Keyboard/                # cible DicteeKeyboard
+├── Core/                    # code portable iOS + macOS (transcription, OpenAI et consignes de style, Trousseau, enregistreur WAV, règles du pipeline)
+├── Keyboard/                # cible DicteeKeyboard (interface SwiftUI du clavier AZERTY, session, panneau rapide)
 ├── Mac/                     # cible DicteeMac (app de barre des menus macOS) ; Mac/Tests = DicteeMacTests
-├── Shared/                  # état partagé, compilé dans toutes les cibles
+├── Shared/                  # état partagé (SharedStore, historique, WritingStyle, TranscriptionProvider), compilé dans toutes les cibles
+│   └── KeyboardLogic/       # logique pure du clavier (couches, accents, majuscule, double espace, ⏎, géométrie) ; exclue du Mac
 └── Tests/                   # DicteeTests
 ```
 
@@ -59,19 +60,37 @@ Toute modification de structure (cibles, Info.plist, droits) se fait dans `proje
 
 | Élément | Où | Rôle |
 |---|---|---|
-| `TranscriptionProvider` | `Core/TranscriptionProvider.swift` | `openai` / `mistral` / `microsoft`, nom affiché, compte du Trousseau, modèles proposés, phrase d'aide |
+| `TranscriptionProvider` | `Shared/TranscriptionProvider.swift` | `openai` / `mistral` / `microsoft`, nom affiché, compte du Trousseau, modèles proposés, phrase d'aide. Dans `Shared/` car le panneau rapide du clavier choisit aussi le fournisseur |
 | `TranscriptionService.transcribe(provider:audioURL:settings:keys:)` | `Core/TranscriptionService.swift` | Point d'entrée unique, appelé par `DictationEngine` (iOS) et `DictationController` (Mac) |
 | `makeMistralRequest`, `makeAzureRequest`, `azureDefinition` | idem | Constructeurs de requêtes purs, testés sans réseau (`OpenAIClient.makeTranscriptionRequest` reste celui d'OpenAI) |
 | `vocabularyTerms`, `azureLocale(for:)`, `mistralLanguage(for:)` | idem | Découpage du vocabulaire (100 termes, sans doublons), locale Azure, langue à 2 lettres pour Mistral |
 | `parseTextResponse`, `parseAzureTranscription`, `errorMessage(from:)` | idem | Réponses (`text` ; `combinedPhrases[0].text`, sinon `phrases[].text`) et erreurs (`error.message`, `message`, `detail`) |
-| `TranscriptionService.cleanUp` | idem | Nettoyage toujours chez OpenAI ; sauté sans erreur s'il n'y a pas de clé OpenAI |
+| `TranscriptionService.cleanUp` | idem | Nettoyage toujours chez OpenAI, si `cleanupEnabled` **ou** style ≠ `brut` (`TranscriptionRules.isCleanupRequested`) ; sauté sans erreur s'il n'y a pas de clé OpenAI |
+| `OpenAIClient.cleanupInstructions(vocabulary:style:)` | `Core/OpenAIClient.swift` | Consignes exactes de SPEC §2, ligne de vocabulaire, puis ligne du style (`WritingStyle.cleanupInstruction`) |
 | `KeychainStore` | `Core/KeychainStore.swift` | Une clé par fournisseur : service `com.dictee.openai`, comptes `apiKey` (OpenAI, inchangé), `apiKey.mistral`, `apiKey.microsoft` |
-| `SharedStore` | `Shared/SharedStore.swift` | `dictee.settings.provider`, `mistralModel`, `microsoftModel`, `azureRegion` (repli sur le défaut si vide). Le type `TranscriptionProvider` n'est pas dans `Shared/` : le clavier n'en a pas besoin |
+| `SharedStore` | `Shared/SharedStore.swift` | `dictee.settings.provider`, `mistralModel`, `microsoftModel`, `azureRegion` (repli sur le défaut si vide), `writingStyle` (valeur inconnue → `brut`), historique `dictee.history` (JSON, 10 au maximum, le plus récent en premier). `provider`, `language` et `writingStyle` sont aussi écrits par le clavier |
+| `WritingStyle` | `Shared/WritingStyle.swift` | `brut` (défaut), `formel`, `courriel`, `decontracte` ; libellé (« Formel ») et libellé de pastille (« Formel. ») |
 
 Défauts : fournisseur `openai`, modèle OpenAI `gpt-transcribe`, Mistral `voxtral-small-transcribe-3`,
 Microsoft `mai-transcribe-2`, région Azure `eastus`. Messages : « Clé API Mistral manquante. Ajoutez-la dans les
 réglages de Dictée. », « Erreur Microsoft (401) : … ». Les clés n'apparaissent jamais dans un message d'erreur
 (remplacées par leur aperçu `sk-…abcd`).
+
+## Clavier AZERTY (SPEC §9)
+
+| Fichier | Rôle |
+|---|---|
+| `Keyboard/KeyboardViewController.swift` | Point d'entrée ; `KeyboardInputView` (clic système), hauteur 290 pt (220 pt en paysage), mode sombre selon `keyboardAppearance`, traits du champ (`returnKeyType`, `autocapitalizationType`), ouverture de l'app |
+| `Keyboard/KeyboardModel.swift` | Session et micro (logique inchangée : signaux Darwin, délai de démarrage de 2 s, accès complet), pastille, menu des styles, panneau rapide, réglages écrits dans l'App Group |
+| `Keyboard/TypingModel.swift` | Frappe : couches, ⇧, double espace, ⌫ répété, accents par appui long, aperçu, frappe à deux doigts |
+| `Keyboard/KeyboardView.swift` | Racine SwiftUI, barre supérieure (☰, pastille, micro), menu des styles, panneau rapide |
+| `Keyboard/KeysView.swift` | Dessin des touches, aperçu, bulle d'accents, `KeyTouchView` (UIKit multi-touch, bouton 🌐, éléments VoiceOver) |
+| `Keyboard/KeyboardTheme.swift` | Couleurs claires et sombres |
+| `Shared/KeyboardLogic/` | Logique pure testée dans `DicteeTests` : `KeyboardLayout`, `AccentTable`, `ShiftLogic`, `AutoCapitalization`, `DoubleSpaceRule`, `ReturnKeyKind`, `KeyboardGeometry` |
+
+Le clavier n'a toujours ni micro ni clé API. Il écrit seulement `writingStyle`, `provider`, `language` et efface
+l'historique dans l'App Group (avec l'accès complet) ; l'app les relit à la dictée suivante. L'historique contient le
+texte des 10 dernières dictées, en clair dans l'App Group (comme `latestTranscript`).
 
 ## Étapes
 
@@ -134,15 +153,62 @@ Note chaque point comme OK, KO ou partiel, et décris les problèmes rencontrés
 - [ ] Mistral ou Microsoft avec le nettoyage activé mais sans clé OpenAI : le texte brut est inséré, sans erreur.
 - [ ] Mistral ou Microsoft avec le nettoyage activé et une clé OpenAI : le texte est nettoyé.
 
-**Clavier**
+**Clavier AZERTY** (SPEC §9 ; captures en mode clair et sombre à joindre)
 - [ ] Le clavier apparaît dans Réglages > Général > Clavier > Claviers > Ajouter.
-- [ ] Sans accès complet : cadenas sur le micro et explication.
-- [ ] Avec accès complet, sans session : le micro ouvre l'app Dictée (**point à risque n° 1**).
-- [ ] Retour à l'app d'origine par « ‹ » : le micro devient bleu (« Touchez pour dicter »).
-- [ ] Dictée dans Notes, Messages, Mail et un champ Safari : le texte s'insère au curseur, avec une espace devant si besoin.
-- [ ] La croix annule un enregistrement en cours, sans insertion.
-- [ ] Globe, espace, effacer (appui long = répétition), retour et ponctuation fonctionnent.
-- [ ] Mode sombre lisible.
+- [ ] Sans accès complet : cadenas sur le micro ; toucher le micro ou changer un réglage du panneau affiche l'explication.
+- [ ] Avec accès complet, sans session : le micro ouvre l'app Dictée (**point à risque n° 1**). Retour par « ‹ » : micro noir, pastille « Brut. ».
+- [ ] Barre supérieure : ☰ à gauche, pastille blanche arrondie et micro dans un cercle noir à droite, comme sur la maquette ; aucune marque tierce, la barre d'espace affiche « Dictée ».
+
+*Frappe*
+- [ ] Lettres `A Z E R T Y U I O P` / `Q S D F G H J K L M` / `⇧ W X C V B N ' ⌫` / `123 espace ⏎` : chaque touche tape le bon caractère, y compris en touchant le bord d'une touche ou l'espace entre deux touches.
+- [ ] Aperçu agrandi de la lettre au toucher (y compris sur la rangée du haut, A et P aux bords) ; clic clavier si « Clics du clavier » est activé dans Réglages > Sons et vibrations.
+- [ ] Frappe rapide à deux pouces : aucune lettre perdue ni doublée (ex. « bonjour » tapé vite, dix fois).
+- [ ] Glisser d'une lettre à une autre avant de relâcher tape la seconde.
+- [ ] ⌫ efface un caractère ; maintenu, il répète (après ~0,5 s) et s'arrête dès qu'on relâche.
+- [ ] Double espace après un mot → « . » suivi d'une majuscule ; pas de point après une ponctuation ou une espace déjà présente.
+- [ ] ⏎ : libellé selon le champ (« retour » dans Notes, « envoyer » dans Messages, « rechercher » dans Safari, « OK »…), bleu pour les actions ; il insère un retour à la ligne ou déclenche l'action de l'app.
+- [ ] 🌐 présent seulement s'il n'y a pas de globe système (iPhone avec bouton d'accueil) ; toucher = clavier suivant, appui long = liste des claviers.
+
+*Accents*
+- [ ] Appui long sur e, a, c, u, i, o, y : bulle avec é è ê ë · à â æ · ç · ù û ü · î ï · ô œ · ÿ ; glisser puis relâcher insère l'accent choisi.
+- [ ] Relâcher sans glisser insère le premier accent ; glisser nettement vers le bas annule.
+- [ ] Sur O et P (bord droit), la bulle s'ouvre vers la gauche sans sortir de l'écran.
+- [ ] Avec ⇧ : accents en majuscules (É, À, Ç, Œ, Ÿ…).
+
+*Majuscules*
+- [ ] Un toucher sur ⇧ = une majuscule ; double toucher = verrouillage (symbole cadenas) ; toucher suivant = arrêt.
+- [ ] Majuscule automatique en début de champ, après « . », « ? », « ! » suivis d'une espace, et après un retour à la ligne (Notes, Messages).
+- [ ] Pas de majuscule automatique dans un champ e-mail ou URL (Safari), ni dans un champ qui la désactive.
+
+*123 et #+=*
+- [ ] `123` : `1 2 3 4 5 6 7 8 9 0` / `- / : ; ( ) € & @ "` / `#+= . , ? ! ' ⌫` / `ABC espace ⏎`.
+- [ ] `#+=` : `[ ] { } # % ^ * + =` / `_ \ | ~ < > $ £ ¥ •` / `123 . , ? ! ' ⌫` / `ABC espace ⏎`.
+- [ ] `ABC` revient aux lettres (avec la majuscule automatique réévaluée).
+
+*Dictée et pastille*
+- [ ] Micro → cercle rouge avec un carré, pastille « Écoute… » ; retoucher → « Transcription… » puis le texte s'insère au curseur, avec une espace devant si besoin.
+- [ ] Appui long sur le micro pendant l'écoute : annulation, rien n'est inséré.
+- [ ] Erreur (ex. clé absente) : message rouge dans la barre ; un toucher le masque.
+- [ ] Pastille : un toucher ouvre le menu des 4 styles (coche sur le style courant) ; toucher à côté le ferme sans taper de lettre.
+
+*Styles d'écriture*
+- [ ] « Formel » choisi au clavier, « Nettoyer le texte » désactivé dans l'app, avec clé OpenAI : une dictée familière ressort au registre soutenu, sans ajout ni résumé.
+- [ ] « Courriel » : paragraphes courts, pas de formule de politesse ajoutée si elle n'est pas dictée. « Décontracté » : ton direct.
+- [ ] Style ≠ « Brut » sans clé OpenAI (fournisseur Mistral) : texte brut inséré, sans erreur ; l'app propose la clé OpenAI.
+- [ ] Le style choisi au clavier apparaît dans l'app (« Style d'écriture ») et inversement.
+
+*Panneau rapide (☰)*
+- [ ] Les dernières transcriptions (10 au maximum, la plus récente en haut) ; un toucher insère le texte et referme le panneau.
+- [ ] « Effacer l'historique » vide la liste (et l'app indique « Historique vide ») ; le bouton de l'app fait de même.
+- [ ] Style, fournisseur (OpenAI / Mistral / Microsoft) et langue (Français, Anglais, Détection auto) : le choix est pris en compte à la dictée suivante et visible dans l'app.
+- [ ] « Ouvrir Dictée » ouvre l'app (`dictee://settings`) sans démarrer de session ; « Fermer » revient aux touches.
+
+*Affichage et mémoire*
+- [ ] Mode sombre (système) et champ à clavier sombre : touches, pastille, micro, bulles et panneau lisibles.
+- [ ] iPhone SE (375 pt) : aucune touche tronquée, « rechercher » lisible sur ⏎, panneau défilable. iPhone Pro Max : touches proportionnées.
+- [ ] Paysage : clavier moins haut, tout reste utilisable.
+- [ ] Mémoire : Xcode > Debug Navigator sur le processus du clavier, moins de ~40 Mo après 2 min de frappe, ouverture du panneau et des bulles ; aucun arrêt `EXC_RESOURCE` ni disparition du clavier.
+- [ ] VoiceOver : chaque touche est annoncée (« a », « Majuscule », « Effacer », « retour »…) et activable.
 
 **Robustesse**
 - [ ] Session en arrière-plan : point orange visible ; elle s'arrête seule après la durée réglée sans dictée.
@@ -166,9 +232,16 @@ Note chaque point comme OK, KO ou partiel, et décris les problèmes rencontrés
    - Si l'app plante avec `dispatch_assert_queue` ou `_swift_task_checkIsolated`, cherche une closure créée dans un contexte `@MainActor` puis appelée par iOS sur un autre thread.
    - Le projet est en Swift 5 : ne passe pas en Swift 6 strict sans traiter ces cas.
 4. **UserDefaults partagés entre processus** : ils peuvent avoir un léger retard. Si le clavier lit un état périmé juste après une notification, une relecture courte (asyncAfter 0,1 s) dans `KeyboardModel` peut suffire.
-5. **Mémoire du clavier** : iOS limite fortement les extensions clavier (environ 48 à 70 Mo). Le clavier ne fait que de l'interface, ça devrait passer. Surveille quand même les éventuels arrêts `EXC_RESOURCE`.
+5. **Mémoire du clavier** : iOS limite fortement les extensions clavier (environ 48 à 70 Mo). Le clavier ne fait que de l'interface : aucune image, couleurs et symboles SF uniquement, liseré des touches dessiné par une forme (pas d'ombre), une seule minuterie (1 s, rafraîchissement de la session, arrêtée à la disparition), appui long et répétition par des `Task` annulées. Surveille quand même les éventuels arrêts `EXC_RESOURCE`.
 6. **Noms de modèles** : par défaut `gpt-transcribe` (OpenAI), `voxtral-small-transcribe-3` (Mistral), `mai-transcribe-2` (Microsoft) et `gpt-4o-mini` (nettoyage), **non vérifiés en direct**. Ils sont modifiables dans l'app (saisie libre). Si un fournisseur renvoie « model not found », vérifie les modèles disponibles sur le compte de l'utilisateur, puis corrige `SharedStore.Default` et `TranscriptionProvider.suggestedModels`.
 7. **Formats Mistral et Azure** : décrits d'après la documentation, non vérifiés. Mistral : champ `context_bias` répété, ni `prompt` ni `response_format`. Azure : `transcriptions:transcribe?api-version=2025-10-15`, parties `audio` et `definition` (JSON), réponse lue dans `combinedPhrases[0].text`. En cas d'écart, corriger `Core/TranscriptionService.swift` et les tests correspondants.
+8. **Clavier AZERTY : points à vérifier en premier**
+   - **Clic clavier** : `KeyboardViewController.loadView` remplace la vue par `KeyboardInputView` (`UIInputView` + `UIInputViewAudioFeedback`). Si le clavier s'affiche mal (fond, hauteur), retirer `loadView` : seul le clic disparaît.
+   - **Touchers** : `KeyTouchView` (UIKit, multi-touch) est posée sur les touches SwiftUI et retrouve la touche par `KeyboardGeometry` (même calcul que l'affichage). Si une touche ne répond pas, vérifier que la vue reçoit bien `touchesBegan` et que sa taille est celle de la zone.
+   - **🌐** : un `UIButton` transparent posé sur la touche, branché sur `handleInputModeList(from:with:)` (`.allTouchEvents`). Si l'appui long n'affiche pas la liste, garder au moins le toucher (repli : `advanceToNextInputMode`).
+   - **Menu des styles** : pendant qu'il est ouvert, `KeyTouchView.isUserInteractionEnabled` est faux pour que le toucher « à côté » arrive à SwiftUI. Si un toucher à côté tape quand même une lettre, c'est ce point.
+   - **Majuscule automatique** : lit `documentContextBeforeInput` après chaque frappe et dans `textDidChange`. Certaines apps renvoient un contexte vide ou en retard : la majuscule peut alors apparaître à tort en milieu de phrase.
+   - **Double espace** : délai de 0,8 s (`DoubleSpaceRule.interval`), à ajuster si besoin.
 
 ## macOS (cible `DicteeMac`)
 
@@ -209,8 +282,10 @@ App de barre des menus (pas d'icône dans le Dock, `LSUIElement`), comme Wispr F
 | `MacSettings.swift` | Réglages propres au Mac (`dictee.settings.hotkey`, `hotkeyMode`, `soundsEnabled`, `restoreClipboard`, `launchAtLogin`). Comme sur iOS, les clés de SPEC §3 sont stockées avec le préfixe `dictee.settings.` |
 | `Permissions.swift` / `LoginItem.swift` | Micro, Accessibilité, ouverture des Réglages Système ; `SMAppService.mainApp` |
 
-Code partagé avec iOS : `Core/` (TranscriptionProvider, TranscriptionService, OpenAIClient, KeychainStore, BufferRecorder, TranscriptionRules) et `Shared/`
-(SharedStore, TextJoiner…). `Shared/DarwinNotifier.swift` (signaux app ↔ clavier iOS) est exclu de `DicteeMac` dans `project.yml`.
+Code partagé avec iOS : `Core/` (TranscriptionService, OpenAIClient, KeychainStore, BufferRecorder, TranscriptionRules) et `Shared/`
+(SharedStore, TranscriptionProvider, WritingStyle, TextJoiner…). `Shared/DarwinNotifier.swift` (signaux app ↔ clavier iOS) et
+`Shared/KeyboardLogic/` (logique du clavier AZERTY) sont exclus de `DicteeMac` dans `project.yml`. Le Mac lit le réglage
+`writingStyle` (Picker « Style d'écriture » dans les réglages ; défaut `brut`, donc sans effet tant qu'il n'est pas changé).
 Sur Mac, l'Info.plist n'a pas de clé `AppGroupIdentifier` : `AppGroup.defaults` vaut `nil` et `SharedStore`
 retombe sur `UserDefaults.standard`. **C'est voulu** (pas d'App Group sur Mac).
 
@@ -318,6 +393,7 @@ Note chaque point comme OK, KO ou partiel, dans `RECETTE.md` (section macOS).
 - [ ] « Nettoyer le texte » activé : dicter « euh bonjour euh je voulais dire merci » → texte ponctué, sans les « euh ».
 - [ ] Modèle de nettoyage sans `temperature` (ex. `o4-mini`) : le nettoyage fonctionne, aucune erreur.
 - [ ] Modèle de nettoyage invalide (ex. `modele-inexistant`) : le texte brut est inséré, sans message d'erreur (SPEC §2.3).
+- [ ] « Style d'écriture » réglé sur « Formel » avec « Nettoyer le texte » désactivé : la dictée est nettoyée au registre soutenu (clé OpenAI requise ; sans elle, texte brut).
 - [ ] Langue vide : une dictée en anglais est transcrite en anglais (détection automatique).
 - [ ] Menu « Dernière transcription » > « Copier » : le texte de la dernière dictée est dans le presse-papiers (⌘V ailleurs).
 - [ ] Arrêt automatique : abaisser temporairement `DictationController.maxRecordingDuration` (à 10 s, par exemple),

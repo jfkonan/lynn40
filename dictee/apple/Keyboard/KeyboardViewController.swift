@@ -1,15 +1,31 @@
 import SwiftUI
 import UIKit
 
+/// Vue d'entrée du clavier. `UIInputViewAudioFeedback` autorise le clic clavier système
+/// (`UIDevice.current.playInputClick()`), si l'utilisateur l'a activé dans Réglages > Sons.
+final class KeyboardInputView: UIInputView, UIInputViewAudioFeedback {
+    var enableInputClicksWhenVisible: Bool { true }
+}
+
 /// Point d'entrée de l'extension clavier (déclaré dans NSExtensionPrincipalClass).
 final class KeyboardViewController: UIInputViewController {
+    /// Hauteur du clavier (barre supérieure + 4 rangées), portrait et paysage.
+    static let regularHeight: CGFloat = 290
+    static let compactHeight: CGFloat = 220
+
     private lazy var model = KeyboardModel(controller: self)
-    private var hostingController: UIHostingController<KeyboardView>?
+    private lazy var typing = TypingModel(controller: self)
+    private var hostingController: UIHostingController<KeyboardRootView>?
+    private var heightConstraint: NSLayoutConstraint?
+
+    override func loadView() {
+        view = KeyboardInputView(frame: .zero, inputViewStyle: .keyboard)
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        let host = UIHostingController(rootView: KeyboardView(model: model))
+        let host = UIHostingController(rootView: KeyboardRootView(model: model, typing: typing))
         host.view.backgroundColor = .clear
         host.view.translatesAutoresizingMaskIntoConstraints = false
         addChild(host)
@@ -23,22 +39,47 @@ final class KeyboardViewController: UIInputViewController {
         host.didMove(toParent: self)
         hostingController = host
 
-        let height = view.heightAnchor.constraint(equalToConstant: 270)
+        let height = view.heightAnchor.constraint(equalToConstant: Self.regularHeight)
         height.priority = UILayoutPriority(999)
         height.isActive = true
+        heightConstraint = height
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        updateAppearance()
         model.appear()
+        typing.appear()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // `needsInputModeSwitchKey` n'est fiable qu'une fois le clavier affiché.
+        typing.updateTraits()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         model.disappear()
+        typing.disappear()
     }
 
-    // MARK: - Actions appelées par le modèle
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        // Paysage sur iPhone : clavier moins haut.
+        let target = traitCollection.verticalSizeClass == .compact ? Self.compactHeight : Self.regularHeight
+        if let heightConstraint, heightConstraint.constant != target {
+            heightConstraint.constant = target
+        }
+    }
+
+    override func textDidChange(_ textInput: UITextInput?) {
+        super.textDidChange(textInput)
+        updateAppearance()
+        typing.documentChanged()
+    }
+
+    // MARK: - Actions appelées par les modèles
 
     func insert(_ text: String) {
         textDocumentProxy.insertText(text)
@@ -48,13 +89,60 @@ final class KeyboardViewController: UIInputViewController {
         let toInsert = TextJoiner.textToInsert(text, before: textDocumentProxy.documentContextBeforeInput)
         guard !toInsert.isEmpty else { return }
         textDocumentProxy.insertText(toInsert)
+        typing.documentChanged()
     }
 
     func deleteBackward() {
         textDocumentProxy.deleteBackward()
     }
 
-    var showsGlobeKey: Bool { needsInputModeSwitchKey }
+    func playClick() {
+        UIDevice.current.playInputClick()
+    }
+
+    /// Texte avant le curseur (majuscule automatique, double espace).
+    var contextBeforeInput: String? {
+        textDocumentProxy.documentContextBeforeInput
+    }
+
+    /// `autocapitalizationType` du champ ; non renseigné → phrases (comportement par défaut d'iOS).
+    var autoCapitalizationMode: AutoCapitalizationMode {
+        let type: UITextAutocapitalizationType? = textDocumentProxy.autocapitalizationType
+        guard let type else { return .sentences }
+        switch type {
+        case .none: return AutoCapitalizationMode.none
+        case .words: return .words
+        case .sentences: return .sentences
+        case .allCharacters: return .allCharacters
+        @unknown default: return .sentences
+        }
+    }
+
+    /// `returnKeyType` du champ, pour le libellé de ⏎.
+    var returnKeyKind: ReturnKeyKind {
+        let type: UIReturnKeyType? = textDocumentProxy.returnKeyType
+        guard let type else { return .standard }
+        switch type {
+        case .default: return .standard
+        case .go: return .go
+        case .google: return .google
+        case .join: return .join
+        case .next: return .next
+        case .route: return .route
+        case .search: return .search
+        case .send: return .send
+        case .yahoo: return .yahoo
+        case .done: return .done
+        case .emergencyCall: return .emergencyCall
+        case .continue: return .continueAction
+        @unknown default: return .standard
+        }
+    }
+
+    /// 🌐 : toucher = clavier suivant, appui long = liste des claviers (API prévue pour les claviers tiers).
+    func attachInputModeSwitch(to control: UIControl) {
+        control.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
+    }
 
     /// Ouvre l'app Dictée. Les claviers n'ont pas d'API officielle pour ça : on remonte la chaîne
     /// des répondeurs jusqu'à UIApplication et on appelle `openURL:options:completionHandler:`
@@ -74,5 +162,21 @@ final class KeyboardViewController: UIInputViewController {
             responder = current.next
         }
         return false
+    }
+
+    // MARK: - Apparence
+
+    /// Mode sombre : celui du système, ou celui imposé par le champ (`keyboardAppearance`).
+    private func updateAppearance() {
+        let appearance: UIKeyboardAppearance? = textDocumentProxy.keyboardAppearance
+        let style: UIUserInterfaceStyle
+        switch appearance {
+        case .some(.dark): style = .dark
+        case .some(.light): style = .light
+        default: style = .unspecified
+        }
+        if overrideUserInterfaceStyle != style {
+            overrideUserInterfaceStyle = style
+        }
     }
 }

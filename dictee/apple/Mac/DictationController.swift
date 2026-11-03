@@ -280,6 +280,7 @@ final class DictationController: ObservableObject {
             let cleaned = await TranscriptionService.cleanUp(
                 raw: raw,
                 enabled: store.cleanupEnabled,
+                style: store.writingStyle,
                 model: store.cleanupModel,
                 vocabulary: settings.vocabulary,
                 openAIKey: keys.openAI

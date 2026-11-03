@@ -119,6 +119,8 @@ targets:
         excludes:
           # Signaux app ↔ clavier iOS : inutiles sur Mac.
           - "DarwinNotifier.swift"
+          # Logique pure du clavier AZERTY iOS (compilée dans l'app iOS pour DicteeTests).
+          - "KeyboardLogic/**"
     info:
       path: Mac/Info.plist
       properties:

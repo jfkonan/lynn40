@@ -13,10 +13,15 @@ struct Transcript: Codable, Equatable {
     let createdAt: Date
 }
 
+extension Transcript: Identifiable {}
+
 /// État et réglages partagés entre l'app et le clavier (UserDefaults de l'App Group).
 /// Les clés API ne sont PAS stockées ici : elles restent dans le Trousseau de l'app (KeychainStore).
 final class SharedStore: @unchecked Sendable {
     static let shared = SharedStore()
+
+    /// Nombre de transcriptions gardées dans l'historique (SPEC §2, « Historique »).
+    static let historyLimit = 10
 
     enum Key {
         static let state = "dictee.state"
@@ -24,6 +29,8 @@ final class SharedStore: @unchecked Sendable {
         static let sessionExpiresAt = "dictee.sessionExpiresAt"
         static let latestTranscript = "dictee.latestTranscript"
         static let consumedTranscriptID = "dictee.consumedTranscriptID"
+        /// Historique des dernières transcriptions (JSON, la plus récente en premier).
+        static let history = "dictee.history"
         // Réglages
         static let provider = "dictee.settings.provider"
         static let model = "dictee.settings.model"
@@ -33,6 +40,7 @@ final class SharedStore: @unchecked Sendable {
         static let language = "dictee.settings.language"
         static let vocabulary = "dictee.settings.vocabulary"
         static let cleanupEnabled = "dictee.settings.cleanupEnabled"
+        static let writingStyle = "dictee.settings.writingStyle"
         static let cleanupModel = "dictee.settings.cleanupModel"
         static let sessionMinutes = "dictee.settings.sessionMinutes"
     }
@@ -46,6 +54,7 @@ final class SharedStore: @unchecked Sendable {
         static let language = "fr"
         static let vocabulary = "OHADA, AUSCGIE, AUDCG, AUPCAP, AUPSRVE, CCJA, SARL, SA, SAS, SNC, GIE, RCCM, assemblée générale, conseil d'administration, commissaire aux comptes, gérant, statuts, capital social"
         static let cleanupEnabled = false
+        static let writingStyle = WritingStyle.brut
         static let cleanupModel = "gpt-4o-mini"
         static let sessionMinutes = 10
     }
@@ -111,19 +120,64 @@ final class SharedStore: @unchecked Sendable {
         consumedTranscriptID = transcript.id
     }
 
+    // MARK: - Historique (SPEC §2, « Historique »)
+
+    /// Les 10 dernières transcriptions, la plus récente en premier. Données illisibles → historique vide.
+    var history: [Transcript] {
+        guard let data = defaults.data(forKey: Key.history),
+              let items = try? JSONDecoder().decode([Transcript].self, from: data) else { return [] }
+        return Array(items.prefix(Self.historyLimit))
+    }
+
+    /// Ajoute une transcription en tête de l'historique (10 au maximum).
+    func addToHistory(_ transcript: Transcript) {
+        let updated = Self.updatedHistory(adding: transcript, to: history)
+        guard let data = try? JSONEncoder().encode(updated) else { return }
+        defaults.set(data, forKey: Key.history)
+    }
+
+    func clearHistory() {
+        defaults.removeObject(forKey: Key.history)
+    }
+
+    /// Règle pure : la nouvelle transcription en tête, sans doublon d'identifiant, `limit` éléments au maximum.
+    static func updatedHistory(adding transcript: Transcript, to existing: [Transcript], limit: Int = SharedStore.historyLimit) -> [Transcript] {
+        let others = existing.filter { $0.id != transcript.id }
+        return Array(([transcript] + others).prefix(max(limit, 0)))
+    }
+
     // MARK: - Réglages
 
-    /// Valeur brute du réglage `provider`. Le type `TranscriptionProvider` (Core/, absent du clavier) la convertit
-    /// via `SharedStore.provider`, avec repli sur `openai` pour une valeur inconnue.
+    /// Valeur brute du réglage `provider`, telle qu'elle est stockée.
     var providerSetting: String { defaults.string(forKey: Key.provider) ?? Default.provider }
+
+    /// Fournisseur choisi : valeur inconnue ou vide → OpenAI (SPEC §3). Modifiable depuis le panneau rapide du clavier.
+    var provider: TranscriptionProvider {
+        get { TranscriptionProvider(storedValue: providerSetting) }
+        set { defaults.set(newValue.rawValue, forKey: Key.provider) }
+    }
+
     /// Modèle OpenAI.
     var model: String { nonEmpty(Key.model) ?? Default.model }
     var mistralModel: String { nonEmpty(Key.mistralModel) ?? Default.mistralModel }
     var microsoftModel: String { nonEmpty(Key.microsoftModel) ?? Default.microsoftModel }
     var azureRegion: String { nonEmpty(Key.azureRegion) ?? Default.azureRegion }
-    var language: String { defaults.string(forKey: Key.language) ?? Default.language }
+
+    /// Langue : vide = détection automatique. Modifiable depuis le panneau rapide du clavier.
+    var language: String {
+        get { defaults.string(forKey: Key.language) ?? Default.language }
+        set { defaults.set(newValue, forKey: Key.language) }
+    }
+
     var vocabulary: String { defaults.string(forKey: Key.vocabulary) ?? Default.vocabulary }
     var cleanupEnabled: Bool { defaults.object(forKey: Key.cleanupEnabled) as? Bool ?? Default.cleanupEnabled }
+
+    /// Style d'écriture : valeur inconnue ou absente → brut (SPEC §3). Modifiable depuis le clavier.
+    var writingStyle: WritingStyle {
+        get { WritingStyle(storedValue: defaults.string(forKey: Key.writingStyle)) }
+        set { defaults.set(newValue.rawValue, forKey: Key.writingStyle) }
+    }
+
     var cleanupModel: String { nonEmpty(Key.cleanupModel) ?? Default.cleanupModel }
     var sessionMinutes: Int {
         let value = defaults.object(forKey: Key.sessionMinutes) as? Int ?? Default.sessionMinutes

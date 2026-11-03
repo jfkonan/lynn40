@@ -72,6 +72,9 @@ final class DictationEngine: ObservableObject {
         case "start":
             launchedFromKeyboard = true
             Task { await startSessionIfAllowed() }
+        case "settings":
+            // « Ouvrir Dictée » du panneau rapide du clavier : il suffit d'ouvrir l'app sur ses réglages.
+            break
         default:
             break
         }
@@ -226,10 +229,12 @@ final class DictationEngine: ObservableObject {
                 keys: keys
             ).trimmingCharacters(in: .whitespacesAndNewlines)
 
-            // Nettoyage toujours chez OpenAI ; sauté sans clé OpenAI, et en cas d'échec on garde le texte brut.
+            // Nettoyage toujours chez OpenAI, si « Nettoyer le texte » est activé ou si le style n'est pas « Brut » ;
+            // sauté sans clé OpenAI, et en cas d'échec on garde le texte brut.
             let cleaned = await TranscriptionService.cleanUp(
                 raw: raw,
                 enabled: store.cleanupEnabled,
+                style: store.writingStyle,
                 model: store.cleanupModel,
                 vocabulary: settings.vocabulary,
                 openAIKey: keys.openAI
@@ -238,7 +243,10 @@ final class DictationEngine: ObservableObject {
 
             // Texte final vide : RuleError.noSpeech (« Aucune parole détectée. »), affichée par le `catch` générique.
             let text = try TranscriptionRules.finalText(raw: raw, cleaned: cleaned)
-            store.latestTranscript = Transcript(id: UUID().uuidString, text: text, createdAt: Date())
+            let transcript = Transcript(id: UUID().uuidString, text: text, createdAt: Date())
+            store.latestTranscript = transcript
+            // Historique des 10 dernières transcriptions, que le clavier peut réinsérer.
+            store.addToHistory(transcript)
             lastTranscript = text
             publish(.idle, error: nil)
             DarwinNotifier.shared.post(.transcriptReady)

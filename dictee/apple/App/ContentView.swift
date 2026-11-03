@@ -19,10 +19,14 @@ struct ContentView: View {
     private var vocabulary = SharedStore.Default.vocabulary
     @AppStorage(SharedStore.Key.cleanupEnabled, store: SharedStore.shared.defaults)
     private var cleanupEnabled = SharedStore.Default.cleanupEnabled
+    @AppStorage(SharedStore.Key.writingStyle, store: SharedStore.shared.defaults)
+    private var writingStyle: WritingStyle = SharedStore.Default.writingStyle
     @AppStorage(SharedStore.Key.cleanupModel, store: SharedStore.shared.defaults)
     private var cleanupModel = SharedStore.Default.cleanupModel
     @AppStorage(SharedStore.Key.sessionMinutes, store: SharedStore.shared.defaults)
     private var sessionMinutes = SharedStore.Default.sessionMinutes
+
+    @State private var historyCount = 0
 
     var body: some View {
         NavigationStack {
@@ -42,6 +46,7 @@ struct ContentView: View {
                 }
                 transcriptionSection
                 cleanupSection
+                historySection
                 installSection
             }
             .navigationTitle("Dictée")
@@ -166,7 +171,12 @@ struct ContentView: View {
     private var cleanupSection: some View {
         Section {
             Toggle("Nettoyer le texte", isOn: $cleanupEnabled)
-            if cleanupEnabled {
+            Picker("Style d'écriture", selection: $writingStyle) {
+                ForEach(WritingStyle.allCases) { style in
+                    Text(style.label).tag(style)
+                }
+            }
+            if cleanupRequested {
                 TextField("Modèle de nettoyage", text: $cleanupModel)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -174,8 +184,24 @@ struct ContentView: View {
         } header: {
             Text("Mise au propre")
         } footer: {
-            Text("Second appel qui ponctue et retire les « euh » sans reformuler. Ajoute un peu de délai et de coût. Il passe toujours par OpenAI, avec la clé OpenAI, quel que soit le fournisseur ; sans clé OpenAI, il est sauté.")
+            Text("Second appel qui ponctue et retire les « euh » sans reformuler. Ajoute un peu de délai et de coût. Il passe toujours par OpenAI, avec la clé OpenAI, quel que soit le fournisseur ; sans clé OpenAI, il est sauté. Un style autre que « Brut » (Formel, Courriel, Décontracté) active ce second appel même si « Nettoyer le texte » est désactivé ; il se choisit aussi depuis le clavier.")
         }
+    }
+
+    private var historySection: some View {
+        Section {
+            Button("Effacer l'historique", role: .destructive) {
+                SharedStore.shared.clearHistory()
+                historyCount = 0
+            }
+        } header: {
+            Text("Historique")
+        } footer: {
+            Text(historyFooter)
+        }
+        // Relu à l'affichage et après chaque dictée (l'historique est aussi effaçable depuis le clavier).
+        .onAppear { historyCount = SharedStore.shared.history.count }
+        .onChange(of: engine.lastTranscript) { _ in historyCount = SharedStore.shared.history.count }
     }
 
     private var installSection: some View {
@@ -194,9 +220,23 @@ struct ContentView: View {
 
     // MARK: - Utilitaires
 
-    /// Clé du fournisseur choisi, plus celle d'OpenAI si le nettoyage est activé.
+    /// Nettoyage demandé : « Nettoyer le texte » activé ou style autre que « Brut » (SPEC §2).
+    private var cleanupRequested: Bool {
+        TranscriptionRules.isCleanupRequested(enabled: cleanupEnabled, style: writingStyle)
+    }
+
+    /// Clé du fournisseur choisi, plus celle d'OpenAI si le nettoyage est demandé.
     private var keyProviders: [TranscriptionProvider] {
-        TranscriptionProvider.providersNeedingKeys(selected: provider, cleanupEnabled: cleanupEnabled)
+        TranscriptionProvider.providersNeedingKeys(selected: provider, cleanupEnabled: cleanupRequested)
+    }
+
+    private var historyFooter: String {
+        let base = "Les \(SharedStore.historyLimit) dernières transcriptions restent sur cet iPhone (App Group) pour être réinsérées depuis le panneau ☰ du clavier."
+        switch historyCount {
+        case 0: return base + " Historique vide."
+        case 1: return base + " 1 transcription enregistrée."
+        default: return base + " \(historyCount) transcriptions enregistrées."
+        }
     }
 
     private var providerFooter: String {

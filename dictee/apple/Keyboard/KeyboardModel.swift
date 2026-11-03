@@ -1,6 +1,7 @@
 import Foundation
 
-/// Logique du clavier : suit l'état de l'app via l'App Group et pilote la dictée par signaux Darwin.
+/// Session de dictée et barre supérieure du clavier : suit l'état de l'app via l'App Group, pilote la dictée
+/// par signaux Darwin, et gère la pastille de style et le panneau rapide (SPEC §9).
 @MainActor
 final class KeyboardModel: ObservableObject {
     enum Phase: Equatable {
@@ -12,9 +13,42 @@ final class KeyboardModel: ObservableObject {
         case error(String)
     }
 
+    /// Message affiché dans la barre supérieure à la place de la pastille (aide ou erreur).
+    struct Message: Equatable {
+        let text: String
+        let isError: Bool
+    }
+
+    /// Choix de langue du panneau rapide : `fr`, `en`, ou vide = détection automatique.
+    struct LanguageChoice: Identifiable, Equatable {
+        let code: String
+        let label: String
+        var id: String { code }
+    }
+
+    static let standardLanguageChoices: [LanguageChoice] = [
+        LanguageChoice(code: "fr", label: "Français"),
+        LanguageChoice(code: "en", label: "Anglais"),
+        LanguageChoice(code: "", label: "Détection auto"),
+    ]
+
+    /// Choix affichés : les trois du cahier des charges, plus la langue réglée dans l'app si elle est autre (ex. `es`).
+    var languageChoices: [LanguageChoice] {
+        let choices = Self.standardLanguageChoices
+        guard !choices.contains(where: { $0.code == language }) else { return choices }
+        return choices + [LanguageChoice(code: language, label: language)]
+    }
+
     @Published private(set) var phase: Phase = .needsSession
     @Published private(set) var hint: String?
-    @Published private(set) var showsGlobeKey = true
+    @Published private(set) var style: WritingStyle = SharedStore.Default.writingStyle
+    @Published private(set) var provider: TranscriptionProvider = .openai
+    @Published private(set) var language: String = SharedStore.Default.language
+    @Published private(set) var history: [Transcript] = []
+    @Published private(set) var panelOpen = false
+    @Published private(set) var styleMenuOpen = false
+    /// Erreur masquée par l'utilisateur (toucher sur le message) : elle ne réapparaît qu'à la dictée suivante.
+    @Published private var dismissedError: String?
 
     private weak var controller: KeyboardViewController?
     private let store = SharedStore.shared
@@ -34,7 +68,6 @@ final class KeyboardModel: ObservableObject {
     // MARK: - Cycle de vie
 
     func appear() {
-        showsGlobeKey = controller?.showsGlobeKey ?? true
         if tokens.isEmpty {
             let notifier = DarwinNotifier.shared
             tokens = [
@@ -43,9 +76,11 @@ final class KeyboardModel: ObservableObject {
             ]
         }
         refreshTimer?.invalidate()
+        // Seule minuterie du clavier : détecte une session arrêtée sans signal (app tuée). Arrêtée à la disparition.
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
+        loadSettings()
         refresh()
         // Si une transcription est arrivée pendant que le clavier était masqué (récente uniquement).
         insertPendingTranscript()
@@ -57,19 +92,23 @@ final class KeyboardModel: ObservableObject {
         if phase == .recording {
             DarwinNotifier.shared.post(.cancelRecording)
         }
+        if styleMenuOpen { styleMenuOpen = false }
+        if panelOpen { panelOpen = false }
     }
 
-    // MARK: - Actions
+    // MARK: - Micro
 
     func micTapped() {
         refresh()
+        styleMenuOpen = false
         switch phase {
         case .noFullAccess:
-            hint = "Activez « Autoriser l'accès complet » : Réglages > Général > Clavier > Claviers > Dictée."
+            showFullAccessHint()
         case .needsSession:
             openApp()
         case .ready, .error:
             hint = nil
+            dismissedError = nil
             phase = .recording
             DarwinNotifier.shared.post(.startRecording)
             armStartTimeout()
@@ -81,41 +120,161 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
+    /// Appui long sur le micro : annule l'écoute en cours ; sinon, se comporte comme un toucher.
+    func micLongPressed() {
+        if phase == .recording {
+            cancelTapped()
+        } else {
+            micTapped()
+        }
+    }
+
     func cancelTapped() {
         DarwinNotifier.shared.post(.cancelRecording)
     }
 
-    func insert(_ text: String) { controller?.insert(text) }
-    func deleteBackward() { controller?.deleteBackward() }
-    func nextKeyboard() { controller?.advanceToNextInputMode() }
+    /// Action VoiceOver « Annuler la dictée ».
+    func cancelIfRecording() {
+        if phase == .recording { cancelTapped() }
+    }
+
+    // MARK: - Barre supérieure
+
+    /// Texte de la pastille : le style (« Brut. »), ou l'état pendant la dictée.
+    var chipText: String {
+        switch phase {
+        case .recording: return "Écoute…"
+        case .transcribing: return "Transcription…"
+        default: return style.chipLabel
+        }
+    }
+
+    var message: Message? {
+        if let hint { return Message(text: hint, isError: false) }
+        if case let .error(text) = phase, text != dismissedError { return Message(text: text, isError: true) }
+        return nil
+    }
+
+    func dismissMessage() {
+        if hint != nil {
+            hint = nil
+        } else if case let .error(text) = phase {
+            dismissedError = text
+        }
+    }
+
+    func toggleStyleMenu() {
+        styleMenuOpen.toggle()
+    }
+
+    func closeStyleMenu() {
+        if styleMenuOpen { styleMenuOpen = false }
+    }
+
+    // MARK: - Panneau rapide
+
+    func togglePanel() {
+        if panelOpen {
+            closePanel()
+        } else {
+            styleMenuOpen = false
+            loadSettings()
+            history = store.history
+            panelOpen = true
+        }
+    }
+
+    func closePanel() {
+        if panelOpen { panelOpen = false }
+    }
+
+    /// Réglages écrits dans l'App Group (mêmes clés que l'app), pris en compte à la dictée suivante.
+    func selectStyle(_ newStyle: WritingStyle) {
+        styleMenuOpen = false
+        guard ensureFullAccess() else { return }
+        store.writingStyle = newStyle
+        style = newStyle
+    }
+
+    func selectProvider(_ newProvider: TranscriptionProvider) {
+        guard ensureFullAccess() else { return }
+        store.provider = newProvider
+        provider = newProvider
+    }
+
+    func selectLanguage(_ code: String) {
+        guard ensureFullAccess() else { return }
+        store.language = code
+        language = code
+    }
+
+    func insertFromHistory(_ transcript: Transcript) {
+        controller?.insertDictation(transcript.text)
+        closePanel()
+    }
+
+    func clearHistory() {
+        guard ensureFullAccess() else { return }
+        store.clearHistory()
+        history = []
+    }
+
+    /// « Ouvrir Dictée » : ouvre l'app sur ses réglages (`dictee://settings`).
+    func openDicteeSettings() {
+        guard let url = URL(string: "dictee://settings"), controller?.openContainingApp(url) == true else {
+            hint = "Ouvrez l'app Dictée depuis l'écran d'accueil."
+            return
+        }
+        closePanel()
+    }
 
     // MARK: - Synchronisation avec l'app
 
     func refresh() {
         guard let controller else { return }
+        let storedStyle = store.writingStyle
+        if storedStyle != style { style = storedStyle }
+
         guard controller.hasFullAccess else {
-            phase = .noFullAccess
+            setPhase(.noFullAccess)
             return
         }
         guard store.isSessionAlive() else {
             // L'app peut finir une transcription même après la fin de session.
-            phase = store.state == .transcribing ? .transcribing : .needsSession
+            setPhase(store.state == .transcribing ? .transcribing : .needsSession)
             return
         }
         switch store.state {
         case .idle:
-            if phase != .recording || startTimeout == nil { phase = .ready }
+            if phase != .recording || startTimeout == nil { setPhase(.ready) }
         case .recording:
             startTimeout?.cancel()
             startTimeout = nil
-            phase = .recording
+            setPhase(.recording)
         case .transcribing:
-            phase = .transcribing
+            setPhase(.transcribing)
         case .error:
             if phase != .recording || startTimeout == nil {
-                phase = .error(store.errorMessage ?? "Erreur inconnue.")
+                setPhase(.error(store.errorMessage ?? "Erreur inconnue."))
             }
         }
+    }
+
+    /// Ne publie que les changements réels (évite de redessiner le clavier chaque seconde).
+    private func setPhase(_ newPhase: Phase) {
+        guard newPhase != phase else { return }
+        let wasWaiting = phase == .needsSession || phase == .noFullAccess
+        phase = newPhase
+        if wasWaiting, newPhase == .ready { hint = nil }
+    }
+
+    private func loadSettings() {
+        let storedStyle = store.writingStyle
+        if storedStyle != style { style = storedStyle }
+        let storedProvider = store.provider
+        if storedProvider != provider { provider = storedProvider }
+        let storedLanguage = store.language
+        if storedLanguage != language { language = storedLanguage }
     }
 
     private func insertPendingTranscript() {
@@ -123,6 +282,18 @@ final class KeyboardModel: ObservableObject {
         guard let transcript = store.unconsumedTranscript() else { return }
         store.markConsumed(transcript)
         controller?.insertDictation(transcript.text)
+    }
+
+    private func ensureFullAccess() -> Bool {
+        guard controller?.hasFullAccess == true else {
+            showFullAccessHint()
+            return false
+        }
+        return true
+    }
+
+    private func showFullAccessHint() {
+        hint = "Activez « Autoriser l'accès complet » : Réglages > Général > Clavier > Claviers > Dictée."
     }
 
     private func openApp() {

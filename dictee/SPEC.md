@@ -100,7 +100,7 @@ Valeurs : `brut` (défaut), `formel`, `courriel`, `decontracte`. Libellés : « 
   - `courriel` : `- Style demandé : courriel. Paragraphes courts, ton courtois. N'ajoute une formule d'appel ou de politesse que si elle est dictée. Ne change pas le sens, ne résume pas, n'ajoute rien.`
   - `decontracte` : `- Style demandé : naturel et décontracté. Phrases simples, ton direct, sans changer le sens, sans résumer et sans rien ajouter.`
 - La ligne de style est ajoutée **après** la ligne de vocabulaire. Elle prime sur la règle « Ne reformule pas » pour le registre uniquement.
-- Disponible d'abord dans le clavier iOS ; macOS et Windows lisent le même réglage plus tard (défaut `brut`, donc sans effet).
+- Réglable dans le clavier et l'app iOS, et dans les réglages macOS ; Windows lira le même réglage plus tard (défaut `brut`, donc sans effet).
 
 ### Historique (iOS)
 
