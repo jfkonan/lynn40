@@ -1,0 +1,6 @@
+# Vos enregistrements et leurs transcriptions ne doivent jamais être commités.
+echantillons/
+# Rapports générés par bench.py (ils contiennent le texte de vos dictées).
+rapport-*.md
+*.csv
+__pycache__/
