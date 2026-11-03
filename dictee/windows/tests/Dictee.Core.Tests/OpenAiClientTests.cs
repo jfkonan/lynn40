@@ -135,7 +135,7 @@ public class OpenAiClientParsingTests
     public void InvalidTranscriptionThrows(string json)
     {
         var ex = Assert.Throws<DicteeException>(() => OpenAiClient.ParseTranscription(json));
-        Assert.Equal(DicteeMessages.InvalidResponse, ex.Message);
+        Assert.Equal("Réponse OpenAI illisible.", ex.Message);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public class OpenAiClientParsingTests
     [Fact]
     public void HttpErrorMessageFormat()
     {
-        Assert.Equal("Erreur OpenAI (401) : Clé invalide", DicteeMessages.Http(401, "Clé invalide"));
+        Assert.Equal("Erreur OpenAI (401) : Clé invalide", DicteeMessages.Http(TranscriptionProvider.OpenAI, 401, "Clé invalide"));
     }
 
     [Theory]
@@ -202,7 +202,7 @@ public class OpenAiClientHttpTests
         var client = new OpenAiClient(OpenAiClient.CreateHttpClient(handler), "sk-secret-1234");
         var path = TempWav.Create();
 
-        var ex = await Assert.ThrowsAsync<OpenAiHttpException>(() => client.TranscribeAsync(path, "gpt-4o-transcribe", "fr", ""));
+        var ex = await Assert.ThrowsAsync<ApiHttpException>(() => client.TranscribeAsync(path, "gpt-4o-transcribe", "fr", ""));
 
         Assert.Equal(401, ex.StatusCode);
         Assert.Equal("Erreur OpenAI (401) : Incorrect API key provided.", ex.Message);
@@ -228,7 +228,7 @@ public class OpenAiClientHttpTests
         var client = new OpenAiClient(OpenAiClient.CreateHttpClient(handler), "sk-test");
 
         var ex = await Assert.ThrowsAsync<DicteeException>(() => client.CleanUpAsync("x", "gpt-4o-mini", ""));
-        Assert.Equal(DicteeMessages.Timeout, ex.Message);
+        Assert.Equal("OpenAI ne répond pas (délai dépassé). Réessayez.", ex.Message);
     }
 
     [Fact]

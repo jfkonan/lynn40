@@ -32,7 +32,11 @@ public static class HotkeyModes
 /// </summary>
 public sealed class DicteeSettings
 {
-    public const string DefaultModel = "gpt-4o-transcribe";
+    public const string DefaultProvider = TranscriptionProviders.OpenAIId;
+    public const string DefaultModel = "gpt-transcribe";
+    public const string DefaultMistralModel = "voxtral-small-transcribe-3";
+    public const string DefaultMicrosoftModel = "mai-transcribe-2";
+    public const string DefaultAzureRegion = "eastus";
     public const string DefaultLanguage = "fr";
     public const string DefaultVocabulary = "OHADA, AUSCGIE, AUDCG, AUPCAP, AUPSRVE, CCJA, SARL, SA, SAS, SNC, GIE, RCCM, assemblée générale, conseil d'administration, commissaire aux comptes, gérant, statuts, capital social";
     public const bool DefaultCleanupEnabled = false;
@@ -40,7 +44,10 @@ public sealed class DicteeSettings
     public const string DefaultHotkey = HotkeyIds.RightCtrl;
     public const string DefaultHotkeyMode = HotkeyModes.Hold;
 
-    public static readonly IReadOnlyList<string> ModelChoices = ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"];
+    public static readonly IReadOnlyList<string> ModelChoices = ["gpt-transcribe", "gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"];
+    public static readonly IReadOnlyList<string> MistralModelChoices = ["voxtral-small-transcribe-3", "voxtral-mini-transcribe-3"];
+    public static readonly IReadOnlyList<string> MicrosoftModelChoices = ["mai-transcribe-2"];
+    public static readonly IReadOnlyList<string> AzureRegionChoices = ["eastus", "westeurope", "swedencentral"];
     public static readonly IReadOnlyList<string> CleanupModelChoices = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"];
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -59,7 +66,11 @@ public sealed class DicteeSettings
         AllowTrailingCommas = true,
     };
 
+    public string Provider { get; set; } = DefaultProvider;
     public string Model { get; set; } = DefaultModel;
+    public string MistralModel { get; set; } = DefaultMistralModel;
+    public string MicrosoftModel { get; set; } = DefaultMicrosoftModel;
+    public string AzureRegion { get; set; } = DefaultAzureRegion;
     public string Language { get; set; } = DefaultLanguage;
     public string Vocabulary { get; set; } = DefaultVocabulary;
     public bool CleanupEnabled { get; set; } = DefaultCleanupEnabled;
@@ -72,10 +83,28 @@ public sealed class DicteeSettings
     public bool RestoreClipboard { get; set; } = true;
     public bool LaunchAtLogin { get; set; } = false;
 
-    /// <summary>Modèle à utiliser : une valeur vide ou faite d'espaces revient au défaut.</summary>
-    [JsonIgnore] public string EffectiveModel => string.IsNullOrWhiteSpace(Model) ? DefaultModel : Model.Trim();
+    /// <summary>Fournisseur reconnu ; valeur vide ou inconnue → OpenAI.</summary>
+    [JsonIgnore] public TranscriptionProvider EffectiveProvider => TranscriptionProviders.Parse(Provider);
 
-    [JsonIgnore] public string EffectiveCleanupModel => string.IsNullOrWhiteSpace(CleanupModel) ? DefaultCleanupModel : CleanupModel.Trim();
+    /// <summary>Modèle OpenAI : une valeur vide ou faite d'espaces revient au défaut (de même pour les suivants).</summary>
+    [JsonIgnore] public string EffectiveModel => OrDefault(Model, DefaultModel);
+
+    [JsonIgnore] public string EffectiveMistralModel => OrDefault(MistralModel, DefaultMistralModel);
+
+    [JsonIgnore] public string EffectiveMicrosoftModel => OrDefault(MicrosoftModel, DefaultMicrosoftModel);
+
+    [JsonIgnore] public string EffectiveAzureRegion => OrDefault(AzureRegion, DefaultAzureRegion);
+
+    /// <summary>Modèle de transcription du fournisseur choisi.</summary>
+    [JsonIgnore]
+    public string EffectiveTranscriptionModel => EffectiveProvider switch
+    {
+        TranscriptionProvider.Mistral => EffectiveMistralModel,
+        TranscriptionProvider.Microsoft => EffectiveMicrosoftModel,
+        _ => EffectiveModel,
+    };
+
+    [JsonIgnore] public string EffectiveCleanupModel => OrDefault(CleanupModel, DefaultCleanupModel);
 
     /// <summary>Raccourci reconnu, sinon le défaut.</summary>
     [JsonIgnore] public string EffectiveHotkey => HotkeyIds.All.Contains(Hotkey) ? Hotkey : DefaultHotkey;
@@ -86,6 +115,8 @@ public sealed class DicteeSettings
         HotkeyIds.IsCombination(EffectiveHotkey) ? HotkeyModes.Toggle
         : HotkeyMode == HotkeyModes.Toggle ? HotkeyModes.Toggle
         : HotkeyModes.Hold;
+
+    private static string OrDefault(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
 
     public DicteeSettings Clone() => (DicteeSettings)MemberwiseClone();
 
@@ -105,7 +136,11 @@ public sealed class DicteeSettings
             string? Str(string key) => node[key] is JsonValue v && v.TryGetValue<string>(out var x) ? x : null;
             bool? Bool(string key) => node[key] is JsonValue v && v.TryGetValue<bool>(out var x) ? x : null;
 
+            s.Provider = Str("provider") ?? s.Provider;
             s.Model = Str("model") ?? s.Model;
+            s.MistralModel = Str("mistralModel") ?? s.MistralModel;
+            s.MicrosoftModel = Str("microsoftModel") ?? s.MicrosoftModel;
+            s.AzureRegion = Str("azureRegion") ?? s.AzureRegion;
             s.Language = Str("language") ?? s.Language;
             s.Vocabulary = Str("vocabulary") ?? s.Vocabulary;
             s.CleanupEnabled = Bool("cleanupEnabled") ?? s.CleanupEnabled;

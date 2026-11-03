@@ -19,10 +19,13 @@ public sealed class MultipartFormData
 
     public string ContentType => $"multipart/form-data; boundary={Boundary}";
 
-    public void AddField(string name, string value)
+    /// <param name="contentType">Type de la partie (ex. <c>application/json</c>) ; omis par défaut, comme pour un champ texte.</param>
+    public void AddField(string name, string value, string? contentType = null)
     {
         Append($"--{Boundary}\r\n");
-        Append($"Content-Disposition: form-data; name=\"{name}\"\r\n\r\n");
+        Append($"Content-Disposition: form-data; name=\"{name}\"\r\n");
+        if (contentType is not null) Append($"Content-Type: {contentType}\r\n");
+        Append("\r\n");
         Append($"{value}\r\n");
     }
 

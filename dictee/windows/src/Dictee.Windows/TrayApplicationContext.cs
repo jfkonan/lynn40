@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Dictee.Core;
 
 namespace Dictee.Windows;
 
@@ -54,9 +55,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         ApplySettings();
         if (_settings.Current.LaunchAtLogin) StartupRegistration.Apply(true); // met à jour le chemin si l'exe a bougé
 
-        if (!_keys.HasKey)
+        var provider = _settings.Current.EffectiveProvider;
+        if (!_keys.HasKey(provider))
         {
-            ShowBalloon("Ajoutez votre clé API OpenAI pour commencer à dicter.", ToolTipIcon.Info);
+            ShowBalloon($"Ajoutez votre clé API {TranscriptionProviders.DisplayName(provider)} pour commencer à dicter.", ToolTipIcon.Info);
             ShowSettings();
         }
         else

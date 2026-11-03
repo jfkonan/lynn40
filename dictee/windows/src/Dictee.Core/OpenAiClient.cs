@@ -2,12 +2,14 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 
 namespace Dictee.Core;
 
-/// <summary>Appels à l'API OpenAI : transcription audio, puis nettoyage optionnel du texte (SPEC.md §2).</summary>
-public sealed class OpenAiClient
+/// <summary>
+/// Appels à l'API OpenAI : transcription audio (fournisseur <c>openai</c>), puis nettoyage optionnel du texte,
+/// toujours chez OpenAI quel que soit le fournisseur de transcription (SPEC.md §2, §2 bis).
+/// </summary>
+public sealed class OpenAiClient : ITranscriptionClient
 {
     public static readonly Uri DefaultBaseUri = new("https://api.openai.com/v1/");
 
@@ -15,7 +17,7 @@ public sealed class OpenAiClient
     private readonly string _apiKey;
     private readonly Uri _baseUri;
 
-    /// <param name="http">Client HTTP partagé ; créez-le avec <see cref="CreateHttpClient"/> (sans délai global).</param>
+    /// <param name="http">Client HTTP partagé ; créez-le avec <see cref="ApiHttp.CreateHttpClient"/> (sans délai global).</param>
     /// <param name="apiKey">Clé de l'utilisateur. Ne jamais la journaliser.</param>
     public OpenAiClient(HttpClient http, string? apiKey, Uri? baseUri = null)
     {
@@ -24,15 +26,18 @@ public sealed class OpenAiClient
         _baseUri = baseUri ?? DefaultBaseUri;
     }
 
-    /// <summary>Client HTTP sans délai global : chaque appel applique son propre délai (120 s ou 60 s).</summary>
-    public static HttpClient CreateHttpClient(HttpMessageHandler? handler = null)
-    {
-        var client = handler is null ? new HttpClient() : new HttpClient(handler);
-        client.Timeout = Timeout.InfiniteTimeSpan;
-        return client;
-    }
+    /// <summary>Client HTTP sans délai global (voir <see cref="ApiHttp.CreateHttpClient"/>).</summary>
+    public static HttpClient CreateHttpClient(HttpMessageHandler? handler = null) => ApiHttp.CreateHttpClient(handler);
+
+    public TranscriptionProvider Provider => TranscriptionProvider.OpenAI;
+
+    /// <summary>Vrai si une clé OpenAI est connue : sans elle, le pipeline saute le nettoyage (SPEC §2.3).</summary>
+    public bool HasApiKey => _apiKey.Length > 0;
 
     // ---- Transcription -------------------------------------------------------------------------
+
+    public Task<string> TranscribeAsync(string audioPath, DicteeSettings settings, CancellationToken cancellationToken = default) =>
+        TranscribeAsync(audioPath, settings.EffectiveModel, settings.Language, settings.Vocabulary, cancellationToken);
 
     public async Task<string> TranscribeAsync(string audioPath, string model, string? language, string? prompt,
         CancellationToken cancellationToken = default)
@@ -65,8 +70,8 @@ public sealed class OpenAiClient
         return request;
     }
 
-    /// <summary>Lit <c>{"text": "..."}</c>.</summary>
-    public static string ParseTranscription(string json)
+    /// <summary>Lit <c>{"text": "..."}</c> (OpenAI et Mistral).</summary>
+    public static string ParseTranscription(string json, TranscriptionProvider provider = TranscriptionProvider.OpenAI)
     {
         try
         {
@@ -79,7 +84,7 @@ public sealed class OpenAiClient
             }
         }
         catch (JsonException) { }
-        throw new DicteeException(DicteeMessages.InvalidResponse);
+        throw new DicteeException(DicteeMessages.InvalidResponse(provider));
     }
 
     // ---- Nettoyage (optionnel) -----------------------------------------------------------------
@@ -159,37 +164,13 @@ public sealed class OpenAiClient
             }
         }
         catch (JsonException) { }
-        throw new DicteeException(DicteeMessages.InvalidResponse);
+        throw new DicteeException(DicteeMessages.InvalidResponse(TranscriptionProvider.OpenAI));
     }
 
     // ---- Utilitaires ---------------------------------------------------------------------------
 
-    /// <summary>Extrait <c>error.message</c> ; à défaut, les 300 premiers caractères du corps.</summary>
-    public static string ExtractErrorMessage(string? body)
-    {
-        if (string.IsNullOrWhiteSpace(body)) return "erreur inconnue";
-        try
-        {
-            using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
-                doc.RootElement.TryGetProperty("error", out var error) &&
-                error.ValueKind == JsonValueKind.Object &&
-                error.TryGetProperty("message", out var message) &&
-                message.ValueKind == JsonValueKind.String)
-            {
-                return RedactKeys(message.GetString() ?? "");
-            }
-        }
-        catch (JsonException) { }
-        return RedactKeys(body.Length <= 300 ? body : body[..300]);
-    }
-
-    /// <summary>
-    /// Une erreur 401 cite la clé partiellement masquée (« sk-proj-ab12****wxyz ») : on n'en garde que l'aperçu
-    /// autorisé par SPEC §4, sans les premiers caractères.
-    /// </summary>
-    private static string RedactKeys(string text) =>
-        Regex.Replace(text, @"sk-[A-Za-z0-9_*\-]{8,}", m => "sk-…" + m.Value[^4..]);
+    /// <summary>Message d'erreur du corps de réponse (voir <see cref="ApiHttp.ExtractErrorMessage"/>).</summary>
+    public static string ExtractErrorMessage(string? body) => ApiHttp.ExtractErrorMessage(body);
 
     public static string MimeType(string fileName) => Path.GetExtension(fileName).ToLowerInvariant() switch
     {
@@ -200,31 +181,8 @@ public sealed class OpenAiClient
         _ => "application/octet-stream",
     };
 
-    private static void EnsureApiKey(string? apiKey)
-    {
-        if (string.IsNullOrWhiteSpace(apiKey)) throw new DicteeException(DicteeMessages.MissingApiKey);
-    }
+    private static void EnsureApiKey(string? apiKey) => ApiHttp.EnsureApiKey(apiKey, TranscriptionProvider.OpenAI);
 
-    private async Task<string> SendAsync(HttpRequestMessage request, TimeSpan timeout, CancellationToken cancellationToken)
-    {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(timeout);
-        try
-        {
-            using var response = await _http.SendAsync(request, cts.Token).ConfigureAwait(false);
-            var body = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-                throw new OpenAiHttpException((int)response.StatusCode, ExtractErrorMessage(body));
-            return body;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            // Délai propre à l'appel (ou délai global du HttpClient) dépassé.
-            throw new DicteeException(DicteeMessages.Timeout);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new DicteeException(DicteeMessages.Network(ex.Message), ex);
-        }
-    }
+    private Task<string> SendAsync(HttpRequestMessage request, TimeSpan timeout, CancellationToken cancellationToken) =>
+        ApiHttp.SendAsync(_http, request, timeout, TranscriptionProvider.OpenAI, _apiKey, cancellationToken);
 }

@@ -10,8 +10,17 @@ Le code a été écrit et compilé sous Linux (SDK .NET 8 avec `EnableWindowsTar
 ## Ce que fait le projet
 
 Équivalent Windows de Wispr Flow, conforme à `../SPEC.md` : app de zone de notification ; on maintient **Ctrl droit**,
-on parle, on relâche ; l'audio part à OpenAI avec la clé de l'utilisateur, et le texte est collé au curseur
-(presse-papiers + Ctrl+V simulé, puis restauration du presse-papiers).
+on parle, on relâche ; l'audio part au fournisseur de transcription choisi (**OpenAI** par défaut, **Mistral** Voxtral
+ou **Microsoft** Azure MAI-Transcribe-2, SPEC §2 bis) avec la clé de l'utilisateur pour ce fournisseur, et le texte est
+collé au curseur (presse-papiers + Ctrl+V simulé, puis restauration du presse-papiers). Le nettoyage optionnel reste
+toujours chez OpenAI ; sans clé OpenAI, il est sauté sans erreur.
+
+> **À confirmer à la première recette** : les API Mistral et Azure ont été décrites d'après des documentations publiques
+> de novembre 2026, **sans appel réel**. Les noms de modèles (`gpt-transcribe`, `voxtral-small-transcribe-3`,
+> `voxtral-mini-transcribe-3`, `mai-transcribe-2`), le champ `context_bias` de Mistral, ainsi que le format Azure
+> (URL `…/speechtotext/transcriptions:transcribe?api-version=2025-10-15`, parties `audio` + `definition`, `enhancedMode`,
+> `phraseList`, réponse `combinedPhrases`) doivent être vérifiés avec de vraies clés (voir la check-list « Fournisseurs »).
+> Un modèle mal nommé se corrige sans recompiler : la liste « Modèle » des réglages accepte la saisie libre.
 
 ## Arborescence
 
@@ -21,13 +30,20 @@ dictee/windows/
 ├── Directory.Build.props        # réglages communs (nullable, version, symboles intégrés)
 ├── src/
 │   ├── Dictee.Core/             # net8.0 pur, sans dépendance Windows, testé
-│   │   ├── OpenAiClient.cs        # transcription + nettoyage, multipart, délais, extraction de error.message
+│   │   ├── TranscriptionProvider.cs # enum OpenAI / Mistral / Microsoft, identifiants, noms affichés, fichiers de clé
+│   │   ├── ITranscriptionClient.cs  # abstraction de transcription + TranscriptionClients.Create(fournisseur)
+│   │   ├── OpenAiClient.cs        # transcription OpenAI + nettoyage (toujours OpenAI), multipart
+│   │   ├── MistralClient.cs       # transcription Mistral Voxtral (context_bias par terme, ni prompt ni response_format)
+│   │   ├── AzureSpeechClient.cs   # transcription Azure MAI-Transcribe-2 (audio + definition JSON, combinedPhrases)
+│   │   ├── ApiHttp.cs             # envoi avec délai, erreurs « Erreur <Fournisseur> (code) », error.message / message / detail
+│   │   ├── VocabularyTerms.cs     # vocabulaire découpé en termes (100 max, sans doublons)
+│   │   ├── AzureLocale.cs         # langue → locale Azure (fr → fr-FR…)
 │   │   ├── MultipartFormData.cs   # corps multipart écrit à la main (comme sur iOS)
-│   │   ├── TranscriptionPipeline.cs # transcription → nettoyage (repli sur le brut) → « Aucune parole détectée. » → suppression du WAV
-│   │   ├── DicteeSettings.cs      # réglages SPEC §3 (JSON camelCase), HotkeyIds, HotkeyModes
+│   │   ├── TranscriptionPipeline.cs # transcription → nettoyage OpenAI (repli sur le brut, sauté sans clé) → « Aucune parole détectée. » → suppression du WAV
+│   │   ├── DicteeSettings.cs      # réglages SPEC §3 (JSON camelCase, provider, modèles, azureRegion), HotkeyIds, HotkeyModes
 │   │   ├── HotkeyStateMachine.cs  # décisions des raccourcis (maintenir/basculer, annulation, AltGr, Échap), sans Win32
 │   │   ├── DicteeConstants.cs     # 16 kHz, 12 min, 0,3 s, 120 s / 60 s, 1 s, 4 s
-│   │   ├── DicteeMessages.cs      # textes imposés + DicteeException / OpenAiHttpException
+│   │   ├── DicteeMessages.cs      # textes imposés (par fournisseur) + DicteeException / ApiHttpException
 │   │   └── ApiKeyHint.cs          # aperçu « sk-…abcd »
 │   └── Dictee.Windows/          # net8.0-windows, WinForms, exe « Dictee.exe »
 │       ├── Program.cs             # instance unique (Mutex), configuration WinForms
@@ -60,14 +76,18 @@ gh run download --name Dictee-Windows-x64 --dir publish
 ### 1. Prérequis
 - Windows 10 ou 11, x64.
 - SDK .NET 8 : `winget install Microsoft.DotNet.SDK.8` (vérifier avec `dotnet --info`).
-- Un micro, une clé API OpenAI valide (à demander à l'utilisateur ; ne jamais l'écrire dans un fichier du dépôt).
+- Un micro et, pour chaque fournisseur à recetter, une clé valide (à demander à l'utilisateur ; ne jamais l'écrire dans un fichier du dépôt) :
+  - OpenAI : clé `sk-…` (<https://platform.openai.com/api-keys>) ;
+  - Mistral : clé de <https://console.mistral.ai/api-keys> ;
+  - Microsoft : clé 1 ou 2 d'une ressource **Azure AI Speech** créée dans une région qui propose MAI-Transcribe-2,
+    et le nom de cette région (ex. `eastus`, `westeurope`, `swedencentral`).
 
 ### 2. Compilation et tests (depuis `dictee/windows`)
 ```powershell
 dotnet build Dictee.sln -c Release
 dotnet test Dictee.sln -c Release
 ```
-Attendu : 0 erreur, 0 avertissement, 99 tests réussis. Le test `MatchesSpecFileExactly` lit `../SPEC.md` :
+Attendu : 0 erreur, 0 avertissement, 188 tests réussis. Le test `MatchesSpecFileExactly` lit `../SPEC.md` :
 il échoue si les consignes de nettoyage divergent du cahier des charges.
 
 ### 3. Lancement en développement
@@ -92,12 +112,21 @@ Note chaque point OK, KO ou partiel, et décris les problèmes. Teste avec l'exe
 - [ ] Relancer l'exe une seconde fois : message « Dictée est déjà lancée… », pas de seconde icône.
 - [ ] Écran à 150 % ou 200 % : réglages, pastille et icône nets et bien proportionnés ; idem en déplaçant la fenêtre vers un écran à autre échelle.
 
-**Clé API et réglages**
-- [ ] Coller une clé, Enregistrer, rouvrir : « Clé enregistrée : sk-…abcd ». `%APPDATA%\Dictee\apikey.bin` n'est pas lisible en clair :
-  `Format-Hex $env:APPDATA\Dictee\apikey.bin | Select-Object -First 3` ne montre aucun « sk- ».
+**Clés API et réglages**
+- [ ] Coller une clé OpenAI, Enregistrer, rouvrir : « OpenAI (fournisseur choisi) : clé enregistrée sk-…abcd ». `%APPDATA%\Dictee\apikey.bin`
+  n'est pas lisible en clair : `Format-Hex $env:APPDATA\Dictee\apikey.bin | Select-Object -First 3` ne montre aucun « sk- ».
+- [ ] Mise à jour depuis la version précédente : la clé OpenAI déjà enregistrée (`apikey.bin`) est toujours reconnue, le fournisseur est OpenAI.
+- [ ] Clés Mistral et Microsoft : chacune s'enregistre dans son fichier (`apikey-mistral.bin`, `apikey-microsoft.bin`), illisible en clair,
+  avec son propre aperçu (3 premiers et 4 derniers caractères) et son propre bouton « Supprimer la clé ».
 - [ ] « Annuler » et Échap ferment la fenêtre des réglages sans rien enregistrer.
-- [ ] « Supprimer la clé » l'efface ; une dictée sans clé affiche « Clé API OpenAI manquante. Ajoutez-la dans les réglages de Dictée. »
-- [ ] `%APPDATA%\Dictee\settings.json` contient les clés camelCase de SPEC §3 et jamais la clé API.
+- [ ] « Supprimer la clé » efface la clé de ce fournisseur seulement ; une dictée sans clé pour le fournisseur choisi affiche
+  « Clé API <Fournisseur> manquante. Ajoutez-la dans les réglages de Dictée. » (OpenAI, Mistral ou Microsoft).
+- [ ] Liste « Fournisseur » : changer de fournisseur affiche son modèle (liste modifiable) ; « Région Azure » n'apparaît que pour Microsoft ;
+  les phrases d'aide « Mistral : hébergé dans l'UE » et « Microsoft : preview, prix promotionnel jusqu'au 31/12/2026 » sont visibles.
+  Le modèle saisi pour chaque fournisseur est conservé quand on passe de l'un à l'autre avant d'enregistrer.
+- [ ] Région Azure invalide (ex. `west europe`) : message à l'enregistrement, rien n'est enregistré.
+- [ ] `%APPDATA%\Dictee\settings.json` contient les clés camelCase de SPEC §3 (dont `provider`, `mistralModel`, `microsoftModel`,
+  `azureRegion`) et jamais une clé API.
 - [ ] Modifier `settings.json` en le corrompant : au relancement, réglages par défaut, pas de plantage.
 - [ ] « Lancer au démarrage » crée/supprime la valeur `Dictee` sous `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` ; Dictée démarre bien à l'ouverture de session.
   Vérifier avec `Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Dictee` (erreur si la valeur est absente).
@@ -115,12 +144,38 @@ Note chaque point OK, KO ou partiel, et décris les problèmes. Teste avec l'exe
 - [ ] Appui bref (< 0,3 s) : rien ne se passe, aucun appel réseau.
 - [ ] Échap pendant l'enregistrement : annulation, rien n'est inséré ; Échap n'est pas transmis à l'application et le menu Démarrer ne s'ouvre pas (Ctrl droit maintenu).
 - [ ] Silence total (micro coupé) : message d'erreur clair dans la pastille pendant ~4 s ; l'icône passe à l'orange, puis redevient normale à la dictée suivante.
-- [ ] Clé invalide : « Erreur OpenAI (401) : Incorrect API key provided… ».
+- [ ] Clé invalide : « Erreur OpenAI (401) : Incorrect API key provided… » (et non la clé elle-même).
 - [ ] Wi-Fi coupé : « Connexion à OpenAI impossible : … ».
 - [ ] Une nouvelle pression pendant « Transcription… » est ignorée ; la pastille disparaît dès le collage, sans attendre la restauration du presse-papiers, et l'on peut enchaîner aussitôt une autre dictée.
 - [ ] Dictée longue (2-3 min) : transcription complète. Optionnel : vérifier l'arrêt automatique à 12 min.
 - [ ] Aucun fichier `dictee-*.wav` ne reste dans `%TEMP%` après succès, erreur, annulation, et après « Quitter » pendant un enregistrement
   ou une transcription : `Get-ChildItem $env:TEMP\dictee-*.wav` ne renvoie rien.
+
+**Fournisseurs de transcription** (une dictée de 20-30 s avec des termes du vocabulaire : OHADA, AUSCGIE, CCJA…)
+
+Pour chaque fournisseur, noter la qualité, les termes du vocabulaire bien orthographiés, la latence ressentie, et le texte
+exact de toute erreur. Un modèle refusé (« Erreur … (400/404) ») indique un nom de modèle à corriger : essayer le nom
+documenté par le fournisseur dans la liste « Modèle » et le signaler dans le compte rendu.
+
+- OpenAI
+  - [ ] Modèle par défaut `gpt-transcribe` : transcription correcte. Sinon, noter l'erreur et vérifier `gpt-4o-transcribe`.
+  - [ ] Vocabulaire envoyé comme `prompt` : les sigles sont bien orthographiés.
+- Mistral
+  - [ ] Fournisseur Mistral + clé Mistral : transcription correcte avec `voxtral-small-transcribe-3`, puis `voxtral-mini-transcribe-3`.
+  - [ ] Les termes du vocabulaire (champ `context_bias`, un par terme) sont respectés ; aucune erreur 422 liée à `context_bias`.
+  - [ ] Langue `fr` et langue vide (détection automatique) fonctionnent toutes deux.
+  - [ ] Clé invalide : « Erreur Mistral (401) : … » ; Wi-Fi coupé : « Connexion à Mistral impossible : … ».
+- Microsoft (Azure MAI-Transcribe-2, preview)
+  - [ ] Fournisseur Microsoft + clé Azure + région de la ressource : transcription correcte avec `mai-transcribe-2`.
+  - [ ] Format à confirmer : URL `https://<région>.api.cognitive.microsoft.com/speechtotext/transcriptions:transcribe?api-version=2025-10-15`,
+    en-tête `Ocp-Apim-Subscription-Key`, parties `audio` et `definition` (`locales`, `enhancedMode`, `phraseList`), texte lu dans
+    `combinedPhrases[0].text`. En cas d'erreur 400/404, noter le message exact (il indique souvent le champ refusé).
+  - [ ] Les termes du vocabulaire (`phraseList`) sont respectés ; langue `fr` → locale `fr-FR` ; langue vide acceptée.
+  - [ ] Mauvaise région (ex. `westus` pour une ressource en `westeurope`) : erreur claire « Erreur Microsoft (401) : … » ou « Connexion à Microsoft impossible : … ».
+  - [ ] Clé invalide : « Erreur Microsoft (401) : … », sans la clé dans le message.
+- Nettoyage (toujours OpenAI)
+  - [ ] Fournisseur Mistral ou Microsoft, « Nettoyer le texte » coché, clé OpenAI enregistrée : le texte est ponctué par OpenAI.
+  - [ ] Même chose **sans** clé OpenAI : le texte brut est inséré, sans aucune erreur.
 
 **Autres raccourcis et modes**
 - [ ] Mode « appuyer pour démarrer, appuyer pour arrêter » avec Ctrl droit.
@@ -172,11 +227,18 @@ Ne jamais y coller la clé API.
    dans Office, où Alt seul affiche les info-bulles du ruban.
 8. **Pastille.** `TopMost` passe par `WS_EX_TOPMOST` et `SetWindowPos(…, SWP_NOACTIVATE)` (et non la propriété `TopMost`,
    qui peut activer la fenêtre). Elle peut passer sous une application plein écran exclusive (jeux) : sans gravité.
+9. **Fournisseurs Mistral et Microsoft non vérifiés en direct.** Les requêtes suivent SPEC §2 bis, écrite d'après des
+   documentations de novembre 2026 : noms de modèles, champ `context_bias` (Mistral), URL, `api-version`, corps
+   `definition` et forme de la réponse (Azure) restent à confirmer. MAI-Transcribe-2 est en preview : l'API peut changer
+   et n'est disponible que dans certaines régions. La région Azure n'accepte que lettres, chiffres et tirets, pour que la clé
+   ne puisse pas partir vers un autre hôte.
 
 ## Choix à préserver
 
 - `Dictee.Core` sans dépendance Windows : c'est ce qui permet de tester sous Linux et en CI.
 - Consignes de nettoyage construites ligne par ligne avec `\n` (pas de chaîne multiligne) : une extraction Git en CRLF
   ne doit pas changer le texte envoyé à OpenAI.
-- `HttpClient` sans délai global (`OpenAiClient.CreateHttpClient`) : chaque appel applique son délai (120 s / 60 s).
+- `HttpClient` sans délai global (`ApiHttp.CreateHttpClient`) : chaque appel applique son délai (120 s / 60 s).
+- Une clé par fournisseur ; `apikey.bin` (OpenAI) et l'entropie DPAPI restent inchangés pour ne pas perdre les clés déjà enregistrées.
+- Requêtes construites par des méthodes statiques pures (`BuildTranscriptionRequest`, `BuildDefinition`), testées sans réseau.
 - Aucune journalisation : rien ne doit pouvoir écrire la clé ou le texte dicté sur disque.

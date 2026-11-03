@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Logique portable (OpenAI, réglages, pipeline, raccourcis) : aucune dépendance Windows, testable sous Linux. -->
+  <!-- Logique portable (OpenAI, Mistral, Azure, réglages, pipeline, raccourcis) : aucune dépendance Windows, testable sous Linux. -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>Dictee.Core</RootNamespace>

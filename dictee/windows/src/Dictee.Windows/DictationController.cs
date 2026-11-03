@@ -41,7 +41,7 @@ internal sealed class DictationController : IDisposable
         _recorder = new AudioRecorder();
         _injector = new TextInjector();
         _sounds = new SoundEffects();
-        _http = OpenAiClient.CreateHttpClient();
+        _http = ApiHttp.CreateHttpClient();
 
         _feedbackTimer.Tick += (_, _) => ShowRecordingFeedback();
         _maxDurationTimer.Tick += (_, _) => _ = StopAndTranscribeAsync(); // 12 min : arrêt automatique puis transcription
@@ -157,20 +157,27 @@ internal sealed class DictationController : IDisposable
                 return;
             }
 
-            // Clé vérifiée au moment de transcrire (comme sur macOS) : un Ctrl+C sans clé enregistrée reste silencieux.
-            var apiKey = _keys.Load();
+            // Clé du fournisseur choisi, vérifiée au moment de transcrire (comme sur macOS) :
+            // un Ctrl+C sans clé enregistrée reste silencieux.
+            var settings = _settings.Current.Clone();
+            var provider = settings.EffectiveProvider;
+            var apiKey = _keys.Load(provider);
             if (apiKey is null)
             {
                 TranscriptionPipeline.TryDelete(recording.Path);
-                Fail(DicteeMessages.MissingApiKey);
+                Fail(DicteeMessages.MissingApiKey(provider));
                 return;
             }
 
             SetState(DictationState.Transcribing);
             _overlay.ShowTranscribing();
 
-            var settings = _settings.Current.Clone();
-            var pipeline = new TranscriptionPipeline(new OpenAiClient(_http, apiKey));
+            // Le nettoyage reste chez OpenAI ; sans clé OpenAI, il est sauté sans erreur (SPEC §2.3).
+            var openAiKey = provider == TranscriptionProvider.OpenAI ? apiKey
+                : settings.CleanupEnabled ? _keys.Load(TranscriptionProvider.OpenAI)
+                : null;
+            var cleaner = openAiKey is null ? null : new OpenAiClient(_http, openAiKey);
+            var pipeline = new TranscriptionPipeline(TranscriptionClients.Create(provider, _http, apiKey), cleaner);
             _audioPath = recording.Path;
             var text = await pipeline.RunAsync(recording.Path, settings, _shutdown.Token);
             _audioPath = null;

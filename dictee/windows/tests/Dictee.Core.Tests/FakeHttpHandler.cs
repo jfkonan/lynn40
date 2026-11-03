@@ -25,11 +25,13 @@ internal sealed class FakeHttpHandler : HttpMessageHandler
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
+        var headers = request.Headers.ToDictionary(h => h.Key, h => string.Join(",", h.Value), StringComparer.OrdinalIgnoreCase);
         Requests.Add(new RecordedRequest(request.Method, request.RequestUri!, request.Headers.Authorization?.ToString(),
-            request.Content?.Headers.ContentType?.ToString(), body));
+            request.Content?.Headers.ContentType?.ToString(), body, headers));
         if (_responses.Count == 0) throw new InvalidOperationException("Aucune réponse préparée.");
         return _responses.Dequeue()(request);
     }
 }
 
-internal sealed record RecordedRequest(HttpMethod Method, Uri Uri, string? Authorization, string? ContentType, string Body);
+internal sealed record RecordedRequest(HttpMethod Method, Uri Uri, string? Authorization, string? ContentType, string Body,
+    IReadOnlyDictionary<string, string> Headers);

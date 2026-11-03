@@ -7,5 +7,4 @@ internal static class AppPaths
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Dictee");
 
     public static string SettingsFile => Path.Combine(DataDirectory, "settings.json");
-    public static string ApiKeyFile => Path.Combine(DataDirectory, "apikey.bin");
 }

@@ -9,13 +9,14 @@ internal sealed class SettingsForm : Form
     private readonly SettingsStore _settings;
     private readonly ApiKeyStore _keys;
 
-    private readonly Label _keyStatus = new() { AutoSize = true };
-    private readonly TextBox _keyInput = new() { UseSystemPasswordChar = true, PlaceholderText = "Collez une nouvelle clé (sk-…)", Dock = DockStyle.Fill };
-    private readonly Button _deleteKey = new() { Text = "Supprimer la clé", AutoSize = true };
+    private readonly ComboBox _provider = new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
     private readonly ComboBox _model = new() { DropDownStyle = ComboBoxStyle.DropDown, Dock = DockStyle.Fill };
+    private readonly ComboBox _azureRegion = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = 160 };
+    private readonly FlowLayoutPanel _azureRegionRow = new() { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
+    private Label? _azureRegionLabel;
     private readonly TextBox _language = new() { Width = 80 };
     private readonly TextBox _vocabulary = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, Height = 72, Dock = DockStyle.Fill, AcceptsReturn = true };
-    private readonly CheckBox _cleanup = new() { Text = "Nettoyer le texte (ponctuation, hésitations) avec un second appel", AutoSize = true };
+    private readonly CheckBox _cleanup = new() { Text = "Nettoyer le texte (ponctuation, hésitations) avec un second appel à OpenAI", AutoSize = true };
     private readonly ComboBox _cleanupModel = new() { DropDownStyle = ComboBoxStyle.DropDown, Dock = DockStyle.Fill };
     private readonly ComboBox _hotkey = new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
     private readonly ComboBox _mode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
@@ -23,6 +24,22 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _sounds = new() { Text = "Sons de début et de fin", AutoSize = true };
     private readonly CheckBox _restoreClipboard = new() { Text = "Restaurer le presse-papiers après l'insertion", AutoSize = true };
     private readonly CheckBox _launchAtLogin = new() { Text = "Lancer Dictée à l'ouverture de session", AutoSize = true };
+
+    /// <summary>Une ligne de clé par fournisseur : aperçu, saisie d'une nouvelle clé, suppression.</summary>
+    private sealed record KeyRow(TranscriptionProvider Provider, Label Status, TextBox Input, Button Delete);
+
+    private readonly KeyRow[] _keyRows;
+
+    // Modèle saisi pour chaque fournisseur : la liste « Modèle » n'affiche que celui du fournisseur choisi.
+    private readonly Dictionary<TranscriptionProvider, string> _modelTexts = [];
+    private TranscriptionProvider _modelShownFor;
+
+    private static readonly (TranscriptionProvider Id, string Label)[] Providers =
+    [
+        (TranscriptionProvider.OpenAI, "OpenAI"),
+        (TranscriptionProvider.Mistral, "Mistral (Voxtral)"),
+        (TranscriptionProvider.Microsoft, "Microsoft (Azure AI Speech, MAI-Transcribe-2)"),
+    ];
 
     private static readonly (string Id, string Label)[] Hotkeys =
     [
@@ -42,6 +59,10 @@ internal sealed class SettingsForm : Form
     {
         _settings = settings;
         _keys = keys;
+        _keyRows = TranscriptionProviders.All.Select(p => new KeyRow(p,
+            new Label { AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(3, 8, 3, 3) },
+            new TextBox { UseSystemPasswordChar = true, PlaceholderText = KeyPlaceholder(p), Dock = DockStyle.Fill, MinimumSize = new Size(340, 0) },
+            new Button { Text = "Supprimer la clé", AutoSize = true })).ToArray();
 
         Text = "Réglages de Dictée";
         Font = SystemFonts.MessageBoxFont ?? Control.DefaultFont;
@@ -57,7 +78,7 @@ internal sealed class SettingsForm : Form
         Padding = new Padding(12);
 
         // Largeurs minimales explicites : la fenêtre s'ajuste à son contenu (AutoSize) et se met à l'échelle avec le DPI.
-        _keyInput.MinimumSize = new Size(340, 0);
+        _provider.MinimumSize = new Size(300, 0);
         _model.MinimumSize = new Size(300, 0);
         _vocabulary.MinimumSize = new Size(420, 72);
         _cleanupModel.MinimumSize = new Size(300, 0);
@@ -66,8 +87,8 @@ internal sealed class SettingsForm : Form
 
         var root = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, Dock = DockStyle.Fill, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.Controls.Add(BuildKeyGroup());
         root.Controls.Add(BuildTranscriptionGroup());
+        root.Controls.Add(BuildKeyGroup());
         root.Controls.Add(BuildHotkeyGroup());
         root.Controls.Add(BuildBehaviorGroup());
         root.Controls.Add(BuildButtons());
@@ -80,41 +101,65 @@ internal sealed class SettingsForm : Form
 
     private GroupBox BuildKeyGroup()
     {
-        var link = new LinkLabel { Text = "Obtenir une clé sur platform.openai.com", AutoSize = true };
-        link.LinkClicked += (_, _) => OpenUrl("https://platform.openai.com/api-keys");
-        _deleteKey.Click += (_, _) =>
-        {
-            if (MessageBox.Show(this, "Supprimer la clé API enregistrée sur cet ordinateur ?", "Dictée",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-            _keys.Delete();
-            RefreshKeyStatus();
-        };
-
         var grid = Grid(2);
-        grid.Controls.Add(_keyStatus, 0, 0);
-        grid.SetColumnSpan(_keyStatus, 2);
-        grid.Controls.Add(_keyInput, 0, 1);
-        grid.Controls.Add(_deleteKey, 1, 1);
-        grid.Controls.Add(Note("Chiffrée par Windows (DPAPI) pour votre seul compte, dans %APPDATA%\\Dictee."), 0, 2);
-        grid.Controls.Add(link, 0, 3);
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        return Group("Clé API OpenAI", grid);
+        foreach (var row in _keyRows)
+        {
+            var provider = row.Provider;
+            row.Delete.Click += (_, _) =>
+            {
+                if (MessageBox.Show(this, $"Supprimer la clé API {ProviderName(provider)} enregistrée sur cet ordinateur ?", "Dictée",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                _keys.Delete(provider);
+                RefreshKeyStatus();
+            };
+            var (linkText, url) = KeyLink(provider);
+            var link = new LinkLabel { Text = linkText, AutoSize = true, Margin = new Padding(3, 0, 3, 6) };
+            link.LinkClicked += (_, _) => OpenUrl(url);
+
+            var statusRow = grid.RowCount++;
+            grid.Controls.Add(row.Status, 0, statusRow);
+            grid.SetColumnSpan(row.Status, 2);
+            var inputRow = grid.RowCount++;
+            grid.Controls.Add(row.Input, 0, inputRow);
+            grid.Controls.Add(row.Delete, 1, inputRow);
+            var linkRow = grid.RowCount++;
+            grid.Controls.Add(link, 0, linkRow);
+            grid.SetColumnSpan(link, 2);
+        }
+        var note = Note("Une clé par fournisseur, chiffrée par Windows (DPAPI) pour votre seul compte, dans %APPDATA%\\Dictee.\n" +
+                        "Le nettoyage du texte utilise toujours la clé OpenAI : sans elle, il est sauté.");
+        var noteRow = grid.RowCount++;
+        grid.Controls.Add(note, 0, noteRow);
+        grid.SetColumnSpan(note, 2);
+        return Group("Clés API", grid);
     }
 
     private GroupBox BuildTranscriptionGroup()
     {
-        _model.Items.AddRange(DicteeSettings.ModelChoices.Cast<object>().ToArray());
+        foreach (var (_, label) in Providers) _provider.Items.Add(label);
+        _provider.SelectedIndexChanged += (_, _) => OnProviderChanged();
+        _azureRegion.Items.AddRange(DicteeSettings.AzureRegionChoices.Cast<object>().ToArray());
+        _azureRegionRow.Controls.Add(_azureRegion);
+        _azureRegionRow.Controls.Add(Note("région de votre ressource Azure Speech"));
         _cleanupModel.Items.AddRange(DicteeSettings.CleanupModelChoices.Cast<object>().ToArray());
         _cleanup.CheckedChanged += (_, _) => _cleanupModel.Enabled = _cleanup.Checked;
 
         var grid = Grid(2);
+        AddRow(grid, "Fournisseur :", _provider);
+        AddNoteRow(grid, Note("OpenAI : fournisseur par défaut.\n" +
+                              "Mistral : hébergé dans l'UE.\n" +
+                              "Microsoft : preview, prix promotionnel jusqu'au 31/12/2026."));
         AddRow(grid, "Modèle :", _model);
+        _azureRegionLabel = AddRow(grid, "Région Azure :", _azureRegionRow);
         var languageRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = Padding.Empty };
         languageRow.Controls.Add(_language);
         languageRow.Controls.Add(Note("code ISO (fr, en…) ; vide = détection automatique"));
         AddRow(grid, "Langue :", languageRow);
         AddRow(grid, "Vocabulaire :", _vocabulary);
+        AddNoteRow(grid, Note("Termes séparés par des virgules, points-virgules ou retours à la ligne\n" +
+                              "(Mistral et Microsoft : 100 termes au maximum)."));
         var cleanupRow = grid.RowCount++;
         grid.Controls.Add(_cleanup, 0, cleanupRow);
         grid.SetColumnSpan(_cleanup, 2);
@@ -171,8 +216,15 @@ internal sealed class SettingsForm : Form
     private void LoadValues()
     {
         var s = _settings.Current;
+        _modelTexts[TranscriptionProvider.OpenAI] = s.EffectiveModel;
+        _modelTexts[TranscriptionProvider.Mistral] = s.EffectiveMistralModel;
+        _modelTexts[TranscriptionProvider.Microsoft] = s.EffectiveMicrosoftModel;
+        _modelShownFor = s.EffectiveProvider;
+        ShowModelChoices(s.EffectiveProvider);
+        _provider.SelectedIndex = Math.Max(0, Array.FindIndex(Providers, p => p.Id == s.EffectiveProvider));
+        _azureRegion.Text = s.EffectiveAzureRegion;
+        UpdateProviderRows();
         RefreshKeyStatus();
-        _model.Text = s.EffectiveModel;
         _language.Text = s.Language;
         _vocabulary.Text = s.Vocabulary;
         _cleanup.Checked = s.CleanupEnabled;
@@ -188,9 +240,51 @@ internal sealed class SettingsForm : Form
 
     private void RefreshKeyStatus()
     {
-        var hint = ApiKeyHint.Preview(_keys.Load());
-        _keyStatus.Text = hint is null ? "Aucune clé enregistrée." : $"Clé enregistrée : {hint}";
-        _deleteKey.Enabled = hint is not null;
+        var selected = SelectedProvider;
+        foreach (var row in _keyRows)
+        {
+            var hint = ApiKeyHint.Preview(_keys.Load(row.Provider));
+            var chosen = row.Provider == selected ? " (fournisseur choisi)" : "";
+            row.Status.Text = hint is null
+                ? $"{ProviderName(row.Provider)}{chosen} : aucune clé enregistrée."
+                : $"{ProviderName(row.Provider)}{chosen} : clé enregistrée {hint}";
+            row.Delete.Enabled = hint is not null;
+        }
+    }
+
+    private TranscriptionProvider SelectedProvider => Providers[Math.Max(0, _provider.SelectedIndex)].Id;
+
+    private void OnProviderChanged()
+    {
+        var provider = SelectedProvider;
+        if (provider == _modelShownFor) return;
+        _modelTexts[_modelShownFor] = _model.Text.Trim();
+        _modelShownFor = provider;
+        ShowModelChoices(provider);
+        UpdateProviderRows();
+        RefreshKeyStatus();
+    }
+
+    /// <summary>Liste modifiable des modèles du fournisseur, avec la valeur saisie pour lui.</summary>
+    private void ShowModelChoices(TranscriptionProvider provider)
+    {
+        var choices = provider switch
+        {
+            TranscriptionProvider.Mistral => DicteeSettings.MistralModelChoices,
+            TranscriptionProvider.Microsoft => DicteeSettings.MicrosoftModelChoices,
+            _ => DicteeSettings.ModelChoices,
+        };
+        _model.Items.Clear();
+        _model.Items.AddRange(choices.Cast<object>().ToArray());
+        _model.Text = _modelTexts.TryGetValue(provider, out var text) ? text : "";
+    }
+
+    /// <summary>« Région Azure » n'apparaît que pour Microsoft.</summary>
+    private void UpdateProviderRows()
+    {
+        var azure = SelectedProvider == TranscriptionProvider.Microsoft;
+        _azureRegionRow.Visible = azure;
+        if (_azureRegionLabel is not null) _azureRegionLabel.Visible = azure;
     }
 
     private void UpdateHotkeyNote()
@@ -211,17 +305,34 @@ internal sealed class SettingsForm : Form
 
     private void SaveAndClose()
     {
-        var newKey = _keyInput.Text.Trim();
-        if (newKey.Length > 0 && (newKey.Length < 20 || newKey.Any(char.IsWhiteSpace)))
+        foreach (var row in _keyRows)
         {
-            MessageBox.Show(this, "Cette clé ne ressemble pas à une clé API OpenAI (elle commence en général par « sk- »).",
+            var key = row.Input.Text.Trim();
+            if (key.Length == 0 || (key.Length >= 20 && !key.Any(char.IsWhiteSpace))) continue;
+            var hint = row.Provider == TranscriptionProvider.OpenAI ? " (elle commence en général par « sk- »)" : "";
+            MessageBox.Show(this, $"Cette clé ne ressemble pas à une clé API {ProviderName(row.Provider)}{hint}.",
                 "Dictée", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            _keyInput.Focus();
+            row.Input.Focus();
             return;
         }
 
+        var region = _azureRegion.Text.Trim();
+        if (region.Length > 0 && !IsValidAzureRegion(region))
+        {
+            MessageBox.Show(this, DicteeMessages.InvalidAzureRegion, "Dictée", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _azureRegion.Focus();
+            return;
+        }
+
+        var provider = SelectedProvider;
+        _modelTexts[provider] = _model.Text.Trim();
+
         var s = _settings.Current.Clone();
-        s.Model = string.IsNullOrWhiteSpace(_model.Text) ? DicteeSettings.DefaultModel : _model.Text.Trim();
+        s.Provider = TranscriptionProviders.Id(provider);
+        s.Model = ModelOrDefault(TranscriptionProvider.OpenAI, DicteeSettings.DefaultModel);
+        s.MistralModel = ModelOrDefault(TranscriptionProvider.Mistral, DicteeSettings.DefaultMistralModel);
+        s.MicrosoftModel = ModelOrDefault(TranscriptionProvider.Microsoft, DicteeSettings.DefaultMicrosoftModel);
+        s.AzureRegion = region.Length == 0 ? DicteeSettings.DefaultAzureRegion : region.ToLowerInvariant();
         s.Language = _language.Text.Trim();
         s.Vocabulary = _vocabulary.Text.Trim();
         s.CleanupEnabled = _cleanup.Checked;
@@ -234,7 +345,11 @@ internal sealed class SettingsForm : Form
 
         try
         {
-            if (newKey.Length > 0) _keys.Save(newKey);
+            foreach (var row in _keyRows)
+            {
+                var key = row.Input.Text.Trim();
+                if (key.Length > 0) _keys.Save(row.Provider, key);
+            }
             _settings.Save(s);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
@@ -251,12 +366,44 @@ internal sealed class SettingsForm : Form
         Close();
     }
 
+    private string ModelOrDefault(TranscriptionProvider provider, string fallback) =>
+        _modelTexts.TryGetValue(provider, out var text) && !string.IsNullOrWhiteSpace(text) ? text.Trim() : fallback;
+
+    private static bool IsValidAzureRegion(string region)
+    {
+        try
+        {
+            AzureSpeechClient.Endpoint(region);
+            return true;
+        }
+        catch (DicteeException)
+        {
+            return false;
+        }
+    }
+
+    private static string ProviderName(TranscriptionProvider provider) => TranscriptionProviders.DisplayName(provider);
+
+    private static string KeyPlaceholder(TranscriptionProvider provider) => provider switch
+    {
+        TranscriptionProvider.Mistral => "Collez une nouvelle clé Mistral",
+        TranscriptionProvider.Microsoft => "Collez une nouvelle clé Azure Speech (clé 1 ou 2)",
+        _ => "Collez une nouvelle clé OpenAI (sk-…)",
+    };
+
+    private static (string Text, string Url) KeyLink(TranscriptionProvider provider) => provider switch
+    {
+        TranscriptionProvider.Mistral => ("Obtenir une clé sur console.mistral.ai", "https://console.mistral.ai/api-keys"),
+        TranscriptionProvider.Microsoft => ("Clé et région : portail Azure > ressource Speech > Clés et point de terminaison", "https://portal.azure.com"),
+        _ => ("Obtenir une clé sur platform.openai.com", "https://platform.openai.com/api-keys"),
+    };
+
     // ---- Aides de mise en page ----
 
     private static TableLayoutPanel Grid(int columns) =>
         new() { ColumnCount = columns, AutoSize = true, Dock = DockStyle.Fill, AutoSizeMode = AutoSizeMode.GrowAndShrink };
 
-    private static void AddRow(TableLayoutPanel grid, string label, Control control)
+    private static Label AddRow(TableLayoutPanel grid, string label, Control control)
     {
         if (grid.ColumnStyles.Count == 0)
         {
@@ -264,8 +411,18 @@ internal sealed class SettingsForm : Form
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         }
         var row = grid.RowCount++;
-        grid.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) }, 0, row);
+        var caption = new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(3, 7, 3, 3) };
+        grid.Controls.Add(caption, 0, row);
         grid.Controls.Add(control, 1, row);
+        return caption;
+    }
+
+    /// <summary>Note grise dans la colonne des valeurs, sous la ligne précédente.</summary>
+    private static void AddNoteRow(TableLayoutPanel grid, Label note)
+    {
+        var row = grid.RowCount++;
+        note.Margin = new Padding(3, 0, 3, 6);
+        grid.Controls.Add(note, 1, row);
     }
 
     private static Label Note(string text) =>
