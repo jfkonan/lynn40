@@ -1,6 +1,8 @@
 import Foundation
 
-/// Appels à l'API OpenAI : transcription audio, puis nettoyage optionnel du texte.
+/// Appels à l'API OpenAI : transcription audio (fournisseur `openai`), puis nettoyage optionnel du texte,
+/// qui passe toujours par OpenAI quel que soit le fournisseur de transcription (SPEC §2.3).
+/// Le point d'entrée de la transcription est `TranscriptionService.transcribe`.
 struct OpenAIClient {
     var apiKey: String
     var session: URLSession = .shared
@@ -154,17 +156,10 @@ struct OpenAIClient {
         }
     }
 
-    /// Extrait `error.message` d'une réponse d'erreur OpenAI.
+    /// Message d'une réponse d'erreur : `error.message`, sinon `message`, sinon `detail`, sinon les 300 premiers
+    /// caractères du corps (SPEC §2.6). Même lecture pour les trois fournisseurs.
     static func errorMessage(from data: Data) -> String {
-        struct ErrorResponse: Decodable {
-            struct Detail: Decodable { let message: String }
-            let error: Detail
-        }
-        if let decoded = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-            return decoded.error.message
-        }
-        // 300 caractères (pas octets) : une coupure au milieu d'un caractère UTF-8 ne doit pas tout perdre.
-        return String(String(decoding: data, as: UTF8.self).prefix(300))
+        TranscriptionService.errorMessage(from: data)
     }
 
     static func mimeType(for filename: String) -> String {

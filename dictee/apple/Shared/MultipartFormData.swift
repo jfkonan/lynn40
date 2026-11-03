@@ -1,6 +1,6 @@
 import Foundation
 
-/// Construction d'un corps multipart/form-data (envoi du fichier audio à OpenAI).
+/// Construction d'un corps multipart/form-data (envoi du fichier audio au fournisseur de transcription).
 struct MultipartFormData {
     let boundary: String
     private(set) var body = Data()
@@ -14,6 +14,14 @@ struct MultipartFormData {
     mutating func addField(name: String, value: String) {
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
+        append("\(value)\r\n")
+    }
+
+    /// Champ texte avec son propre type de contenu (ex. la partie `definition` en JSON pour Azure).
+    mutating func addField(name: String, value: String, contentType: String) {
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"\(name)\"\r\n")
+        append("Content-Type: \(contentType)\r\n\r\n")
         append("\(value)\r\n")
     }
 

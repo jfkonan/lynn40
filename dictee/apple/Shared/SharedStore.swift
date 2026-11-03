@@ -14,7 +14,7 @@ struct Transcript: Codable, Equatable {
 }
 
 /// État et réglages partagés entre l'app et le clavier (UserDefaults de l'App Group).
-/// La clé API n'est PAS stockée ici : elle reste dans le Trousseau de l'app (KeychainStore).
+/// Les clés API ne sont PAS stockées ici : elles restent dans le Trousseau de l'app (KeychainStore).
 final class SharedStore: @unchecked Sendable {
     static let shared = SharedStore()
 
@@ -25,7 +25,11 @@ final class SharedStore: @unchecked Sendable {
         static let latestTranscript = "dictee.latestTranscript"
         static let consumedTranscriptID = "dictee.consumedTranscriptID"
         // Réglages
+        static let provider = "dictee.settings.provider"
         static let model = "dictee.settings.model"
+        static let mistralModel = "dictee.settings.mistralModel"
+        static let microsoftModel = "dictee.settings.microsoftModel"
+        static let azureRegion = "dictee.settings.azureRegion"
         static let language = "dictee.settings.language"
         static let vocabulary = "dictee.settings.vocabulary"
         static let cleanupEnabled = "dictee.settings.cleanupEnabled"
@@ -34,7 +38,11 @@ final class SharedStore: @unchecked Sendable {
     }
 
     enum Default {
-        static let model = "gpt-4o-transcribe"
+        static let provider = "openai"
+        static let model = "gpt-transcribe"
+        static let mistralModel = "voxtral-small-transcribe-3"
+        static let microsoftModel = "mai-transcribe-2"
+        static let azureRegion = "eastus"
         static let language = "fr"
         static let vocabulary = "OHADA, AUSCGIE, AUDCG, AUPCAP, AUPSRVE, CCJA, SARL, SA, SAS, SNC, GIE, RCCM, assemblée générale, conseil d'administration, commissaire aux comptes, gérant, statuts, capital social"
         static let cleanupEnabled = false
@@ -105,7 +113,14 @@ final class SharedStore: @unchecked Sendable {
 
     // MARK: - Réglages
 
+    /// Valeur brute du réglage `provider`. Le type `TranscriptionProvider` (Core/, absent du clavier) la convertit
+    /// via `SharedStore.provider`, avec repli sur `openai` pour une valeur inconnue.
+    var providerSetting: String { defaults.string(forKey: Key.provider) ?? Default.provider }
+    /// Modèle OpenAI.
     var model: String { nonEmpty(Key.model) ?? Default.model }
+    var mistralModel: String { nonEmpty(Key.mistralModel) ?? Default.mistralModel }
+    var microsoftModel: String { nonEmpty(Key.microsoftModel) ?? Default.microsoftModel }
+    var azureRegion: String { nonEmpty(Key.azureRegion) ?? Default.azureRegion }
     var language: String { defaults.string(forKey: Key.language) ?? Default.language }
     var vocabulary: String { defaults.string(forKey: Key.vocabulary) ?? Default.vocabulary }
     var cleanupEnabled: Bool { defaults.object(forKey: Key.cleanupEnabled) as? Bool ?? Default.cleanupEnabled }

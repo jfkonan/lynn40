@@ -286,7 +286,11 @@ final class SharedSettingsOnMacTests: XCTestCase {
     }
 
     func testDefaultsMatchSpec() {
-        XCTAssertEqual(store.model, "gpt-4o-transcribe")
+        XCTAssertEqual(store.provider, .openai)
+        XCTAssertEqual(store.model, "gpt-transcribe")
+        XCTAssertEqual(store.mistralModel, "voxtral-small-transcribe-3")
+        XCTAssertEqual(store.microsoftModel, "mai-transcribe-2")
+        XCTAssertEqual(store.azureRegion, "eastus")
         XCTAssertEqual(store.language, "fr")
         XCTAssertEqual(
             store.vocabulary,
@@ -299,14 +303,97 @@ final class SharedSettingsOnMacTests: XCTestCase {
     func testBlankModelsFallBackToDefaults() {
         store.defaults.set("", forKey: SharedStore.Key.model)
         store.defaults.set("   ", forKey: SharedStore.Key.cleanupModel)
-        XCTAssertEqual(store.model, "gpt-4o-transcribe")
+        store.defaults.set("", forKey: SharedStore.Key.mistralModel)
+        store.defaults.set(" ", forKey: SharedStore.Key.microsoftModel)
+        store.defaults.set("  ", forKey: SharedStore.Key.azureRegion)
+        XCTAssertEqual(store.model, "gpt-transcribe")
         XCTAssertEqual(store.cleanupModel, "gpt-4o-mini")
+        XCTAssertEqual(store.mistralModel, "voxtral-small-transcribe-3")
+        XCTAssertEqual(store.microsoftModel, "mai-transcribe-2")
+        XCTAssertEqual(store.azureRegion, "eastus")
+    }
+
+    func testUnknownProviderFallsBackToOpenAI() {
+        store.defaults.set("mistral", forKey: SharedStore.Key.provider)
+        XCTAssertEqual(store.provider, .mistral)
+        store.defaults.set("google", forKey: SharedStore.Key.provider)
+        XCTAssertEqual(store.provider, .openai)
     }
 
     func testEmptyLanguageMeansAutomaticDetection() {
         // Langue vide : conservée telle quelle, puis omise de la requête (pas de retour à « fr »).
         store.defaults.set("", forKey: SharedStore.Key.language)
         XCTAssertEqual(store.language, "")
+    }
+}
+
+/// Fournisseurs de transcription (SPEC §2 bis), tels que l'app Mac les appelle via TranscriptionService.
+final class ProvidersOnMacTests: XCTestCase {
+    func testMissingKeyAndHTTPErrorsNameTheProvider() {
+        XCTAssertEqual(
+            TranscriptionError.missingAPIKey(.mistral).errorDescription,
+            "Clé API Mistral manquante. Ajoutez-la dans les réglages de Dictée."
+        )
+        XCTAssertEqual(
+            TranscriptionError.http(provider: .microsoft, status: 401, message: "Access denied").errorDescription,
+            "Erreur Microsoft (401) : Access denied"
+        )
+    }
+
+    func testMistralRequestSendsContextBiasWithoutPromptOrResponseFormat() throws {
+        let (request, body) = try TranscriptionService.makeMistralRequest(
+            apiKey: "k", audio: Data([0]), filename: "dictee-1.wav",
+            model: "voxtral-small-transcribe-3", language: "fr-FR", vocabulary: "OHADA, CCJA"
+        )
+        let text = String(decoding: body, as: UTF8.self)
+        XCTAssertEqual(request.url?.absoluteString, "https://api.mistral.ai/v1/audio/transcriptions")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer k")
+        XCTAssertEqual(text.components(separatedBy: "name=\"context_bias\"").count - 1, 2)
+        XCTAssertTrue(text.contains("name=\"language\"\r\n\r\nfr\r\n"))
+        XCTAssertFalse(text.contains("name=\"prompt\""))
+        XCTAssertFalse(text.contains("name=\"response_format\""))
+    }
+
+    func testAzureRequestMatchesSpec() throws {
+        let (request, body) = try TranscriptionService.makeAzureRequest(
+            region: "eastus", apiKey: "azure-key", audio: Data([0]),
+            model: "mai-transcribe-2", language: "", vocabulary: "OHADA"
+        )
+        let text = String(decoding: body, as: UTF8.self)
+        XCTAssertEqual(
+            request.url?.absoluteString,
+            "https://eastus.api.cognitive.microsoft.com/speechtotext/transcriptions:transcribe?api-version=2025-10-15"
+        )
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Ocp-Apim-Subscription-Key"), "azure-key")
+        XCTAssertTrue(text.contains("name=\"audio\"; filename=\"audio.wav\"\r\nContent-Type: audio/wav\r\n"))
+        XCTAssertTrue(text.contains("name=\"definition\"\r\nContent-Type: application/json\r\n"))
+        // Langue vide : pas de `locales`.
+        XCTAssertFalse(text.contains("locales"))
+        XCTAssertTrue(text.contains("phraseList"))
+    }
+
+    func testParsersAndLocales() throws {
+        XCTAssertEqual(
+            try TranscriptionService.parseAzureTranscription(Data(#"{"combinedPhrases":[{"text":"Bonjour."}]}"#.utf8)),
+            "Bonjour."
+        )
+        XCTAssertEqual(
+            try TranscriptionService.parseAzureTranscription(Data(#"{"phrases":[{"text":"Bon"},{"text":"jour"}]}"#.utf8)),
+            "Bon jour"
+        )
+        XCTAssertEqual(TranscriptionService.errorMessage(from: Data(#"{"message":"Unauthorized"}"#.utf8)), "Unauthorized")
+        XCTAssertEqual(TranscriptionService.errorMessage(from: Data(#"{"detail":"Not found"}"#.utf8)), "Not found")
+        XCTAssertEqual(TranscriptionService.azureLocale(for: "fr"), "fr-FR")
+        XCTAssertEqual(TranscriptionService.azureLocale(for: "pt-PT"), "pt-PT")
+        XCTAssertEqual(TranscriptionService.azureLocale(for: "xx"), "xx-XX")
+        XCTAssertNil(TranscriptionService.azureLocale(for: ""))
+        XCTAssertEqual(TranscriptionService.vocabularyTerms("a, b; a\nc").count, 3)
+    }
+
+    func testKeychainAccountsAndKeysToShow() {
+        XCTAssertEqual(TranscriptionProvider.allCases.map(\.keychainAccount), ["apiKey", "apiKey.mistral", "apiKey.microsoft"])
+        XCTAssertEqual(TranscriptionProvider.providersNeedingKeys(selected: .microsoft, cleanupEnabled: true), [.microsoft, .openai])
+        XCTAssertFalse(TranscriptionRules.shouldCleanUp(enabled: true, raw: "bonjour", openAIKey: nil))
     }
 }
 

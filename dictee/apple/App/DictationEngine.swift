@@ -2,7 +2,8 @@ import AVFoundation
 import UIKit
 
 /// Cœur de l'app : garde une session audio active en arrière-plan, enregistre à la demande
-/// du clavier, envoie l'audio à OpenAI et dépose le texte dans l'App Group.
+/// du clavier, envoie l'audio au fournisseur de transcription choisi (OpenAI, Mistral ou Microsoft)
+/// et dépose le texte dans l'App Group.
 ///
 /// Pourquoi une session permanente : iOS interdit le micro aux claviers et ne laisse pas une app
 /// en arrière-plan *démarrer* le micro. On démarre donc le moteur audio une fois (app au premier plan),
@@ -211,33 +212,32 @@ final class DictationEngine: ObservableObject {
             if backgroundTask != .invalid { UIApplication.shared.endBackgroundTask(backgroundTask) }
         }
 
-        guard let apiKey = KeychainStore.loadAPIKey(), !apiKey.isEmpty else {
-            publish(.error, error: OpenAIClient.ClientError.missingAPIKey.errorDescription)
-            return
-        }
-        let client = OpenAIClient(apiKey: apiKey)
+        // Réglages et clés lus une fois, avant l'appel réseau. Clé du fournisseur absente :
+        // TranscriptionError.missingAPIKey (« Clé API Mistral manquante… »), affichée par le `catch` générique.
+        let provider = store.provider
+        let settings = store.transcriptionSettings
+        let keys = KeychainStore.loadAllKeys()
 
         do {
-            var text = try await client.transcribe(
+            let raw = try await TranscriptionService.transcribe(
+                provider: provider,
                 audioURL: fileURL,
-                model: store.model,
-                language: store.language,
-                prompt: store.vocabulary
+                settings: settings,
+                keys: keys
             ).trimmingCharacters(in: .whitespacesAndNewlines)
 
-            if store.cleanupEnabled, !text.isEmpty {
-                // En cas d'échec du nettoyage, on garde le texte brut plutôt que de tout perdre.
-                if let cleaned = try? await client.cleanUp(text: text, model: store.cleanupModel, vocabulary: store.vocabulary),
-                   !cleaned.isEmpty {
-                    text = cleaned
-                }
-            }
+            // Nettoyage toujours chez OpenAI ; sauté sans clé OpenAI, et en cas d'échec on garde le texte brut.
+            let cleaned = await TranscriptionService.cleanUp(
+                raw: raw,
+                enabled: store.cleanupEnabled,
+                model: store.cleanupModel,
+                vocabulary: settings.vocabulary,
+                openAIKey: keys.openAI
+            )
             try Task.checkCancellation()
 
-            guard !text.isEmpty else {
-                publish(.error, error: "Aucune parole détectée.")
-                return
-            }
+            // Texte final vide : RuleError.noSpeech (« Aucune parole détectée. »), affichée par le `catch` générique.
+            let text = try TranscriptionRules.finalText(raw: raw, cleaned: cleaned)
             store.latestTranscript = Transcript(id: UUID().uuidString, text: text, createdAt: Date())
             lastTranscript = text
             publish(.idle, error: nil)

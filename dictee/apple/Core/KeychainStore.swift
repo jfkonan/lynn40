@@ -1,10 +1,11 @@
 import Foundation
 import Security
 
-/// Stockage de la clé API OpenAI dans le Trousseau (iOS et macOS), jamais dans le code ni dans l'App Group.
+/// Stockage des clés API dans le Trousseau (iOS et macOS), jamais dans le code ni dans l'App Group.
+/// Une clé par fournisseur (SPEC §4) : service `com.dictee.openai`, compte `apiKey` pour OpenAI (inchangé,
+/// pour garder les clés déjà enregistrées), `apiKey.mistral` pour Mistral, `apiKey.microsoft` pour Microsoft.
 enum KeychainStore {
     private static let service = "com.dictee.openai"
-    private static let account = "apiKey"
 
     enum KeychainError: LocalizedError {
         case status(OSStatus)
@@ -14,14 +15,15 @@ enum KeychainStore {
         }
     }
 
-    static func saveAPIKey(_ key: String) throws {
+    /// Enregistre la clé du fournisseur (OpenAI par défaut). Une clé vide efface la clé existante.
+    static func saveAPIKey(_ key: String, for provider: TranscriptionProvider = .openai) throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        deleteAPIKey()
+        deleteAPIKey(for: provider)
         guard !trimmed.isEmpty else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: provider.keychainAccount,
             kSecValueData as String: Data(trimmed.utf8),
         ]
         #if os(iOS)
@@ -37,11 +39,12 @@ enum KeychainStore {
         guard status == errSecSuccess else { throw KeychainError.status(status) }
     }
 
-    static func loadAPIKey() -> String? {
+    /// Clé du fournisseur (OpenAI par défaut), ou `nil` si elle n'est pas enregistrée.
+    static func loadAPIKey(for provider: TranscriptionProvider = .openai) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: provider.keychainAccount,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
@@ -51,6 +54,15 @@ enum KeychainStore {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Les trois clés, pour `TranscriptionService.transcribe` (et le nettoyage, qui utilise la clé OpenAI).
+    static func loadAllKeys() -> ProviderKeys {
+        ProviderKeys(
+            openAI: loadAPIKey(for: .openai),
+            mistral: loadAPIKey(for: .mistral),
+            microsoft: loadAPIKey(for: .microsoft)
+        )
+    }
+
     /// Aperçu affichable de la clé : 3 premiers et 4 derniers caractères, ex. `sk-…abcd` (SPEC §4).
     static func preview(of key: String?) -> String? {
         guard let key = key?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else { return nil }
@@ -58,11 +70,11 @@ enum KeychainStore {
         return "\(key.prefix(3))…\(key.suffix(4))"
     }
 
-    static func deleteAPIKey() {
+    static func deleteAPIKey(for provider: TranscriptionProvider = .openai) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: provider.keychainAccount,
         ]
         SecItemDelete(query as CFDictionary)
     }

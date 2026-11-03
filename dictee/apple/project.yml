@@ -42,7 +42,7 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        NSMicrophoneUsageDescription: "Dictée enregistre votre voix pour la transcrire en texte via votre clé OpenAI."
+        NSMicrophoneUsageDescription: "Dictée enregistre votre voix pour la transcrire en texte avec votre clé API (OpenAI, Mistral ou Microsoft)."
         UIBackgroundModes:
           - audio
         CFBundleURLTypes:
@@ -129,7 +129,7 @@ targets:
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         LSApplicationCategoryType: public.app-category.productivity
         LSUIElement: true
-        NSMicrophoneUsageDescription: "Dictée enregistre votre voix pendant que vous maintenez le raccourci, pour la transcrire en texte via votre clé OpenAI."
+        NSMicrophoneUsageDescription: "Dictée enregistre votre voix pendant que vous maintenez le raccourci, pour la transcrire en texte avec votre clé API (OpenAI, Mistral ou Microsoft)."
     entitlements:
       path: Mac/DicteeMac.entitlements
       properties:

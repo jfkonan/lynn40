@@ -1,7 +1,7 @@
 import AppKit
 import Combine
 
-/// Chef d'orchestre de l'app Mac : raccourci → micro → OpenAI → insertion au curseur.
+/// Chef d'orchestre de l'app Mac : raccourci → micro → transcription (OpenAI, Mistral ou Microsoft) → insertion au curseur.
 /// États (SPEC §7) : idle → recording → transcribing → idle ; `error` revient à idle à la dictée suivante.
 @MainActor
 final class DictationController: ObservableObject {
@@ -64,8 +64,8 @@ final class DictationController: ObservableObject {
             Task { @MainActor in self?.refreshAccessibility() }
         }
 
-        // Premier lancement : il manque la clé, ou l'autorisation nécessaire au raccourci Fn.
-        let needsKey = KeychainStore.loadAPIKey() == nil
+        // Premier lancement : il manque la clé du fournisseur choisi, ou l'autorisation nécessaire au raccourci Fn.
+        let needsKey = KeychainStore.loadAPIKey(for: store.provider) == nil
         let needsAccessibility = settings.hotkey == .fn && !accessibilityGranted
         if needsKey || needsAccessibility {
             SettingsWindowController.shared.show()
@@ -261,25 +261,29 @@ final class DictationController: ObservableObject {
         // Le fichier audio est supprimé dans tous les cas (SPEC §2.5).
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        guard let apiKey = KeychainStore.loadAPIKey(), !apiKey.isEmpty else {
-            fail(OpenAIClient.ClientError.missingAPIKey.errorDescription ?? "Clé API OpenAI manquante.")
-            return
-        }
-        let client = OpenAIClient(apiKey: apiKey)
+        // Réglages et clés lus une fois, avant l'appel réseau. Clé du fournisseur absente :
+        // TranscriptionError.missingAPIKey (« Clé API Mistral manquante… »), affichée par le `catch` générique.
+        let provider = store.provider
+        let settings = store.transcriptionSettings
+        let keys = KeychainStore.loadAllKeys()
 
         do {
-            let raw = try await client.transcribe(
+            let raw = try await TranscriptionService.transcribe(
+                provider: provider,
                 audioURL: fileURL,
-                model: store.model,
-                language: store.language,
-                prompt: store.vocabulary
+                settings: settings,
+                keys: keys
             ).trimmingCharacters(in: .whitespacesAndNewlines)
 
-            // Nettoyage en échec : `nil`, et finalText retombe sur le texte brut.
-            var cleaned: String?
-            if TranscriptionRules.shouldCleanUp(enabled: store.cleanupEnabled, raw: raw) {
-                cleaned = try? await client.cleanUp(text: raw, model: store.cleanupModel, vocabulary: store.vocabulary)
-            }
+            // Nettoyage toujours chez OpenAI. `nil` s'il est désactivé, sans clé OpenAI ou en échec :
+            // finalText retombe alors sur le texte brut.
+            let cleaned = await TranscriptionService.cleanUp(
+                raw: raw,
+                enabled: store.cleanupEnabled,
+                model: store.cleanupModel,
+                vocabulary: settings.vocabulary,
+                openAIKey: keys.openAI
+            )
             try Task.checkCancellation()
 
             // Texte final vide : RuleError.noSpeech (« Aucune parole détectée. »), affichée par le `catch` générique.

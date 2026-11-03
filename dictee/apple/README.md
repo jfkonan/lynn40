@@ -1,7 +1,8 @@
 # Dictée
 
-Dictée transcrit votre voix avec **votre propre clé API OpenAI**, sur le principe de Wispr Flow, et insère le texte
-là où se trouve le curseur. Ce dossier contient deux versions :
+Dictée transcrit votre voix avec **votre propre clé API**, sur le principe de Wispr Flow, et insère le texte
+là où se trouve le curseur. Trois fournisseurs de transcription au choix : **OpenAI** (par défaut), **Mistral**
+(hébergé dans l'UE) ou **Microsoft** (Azure, MAI-Transcribe-2, en preview). Ce dossier contient deux versions :
 - **iPhone** : un clavier de dictée (ci-dessous) ;
 - **Mac** : une app de barre des menus (voir « Sur Mac » plus bas).
 
@@ -10,14 +11,14 @@ Le comportement commun est décrit dans [`../SPEC.md`](../SPEC.md).
 ## Comment ça marche
 
 iOS interdit aux claviers d'utiliser le micro. Dictée est donc composée de deux éléments :
-- **l'app Dictée**, qui écoute, envoie l'audio à OpenAI et garde votre clé ;
+- **l'app Dictée**, qui écoute, envoie l'audio au fournisseur choisi et garde vos clés ;
 - **le clavier Dictée**, qui affiche un gros bouton micro et insère le texte.
 
 Le principe est celui de Wispr Flow : vous démarrez une « session » une fois, puis vous dictez dans n'importe quelle app sans la quitter.
 
 ## Utilisation
 
-1. **Première fois** : ouvrez l'app Dictée et collez votre clé OpenAI (`sk-…`).
+1. **Première fois** : ouvrez l'app Dictée, choisissez le fournisseur et collez sa clé API (`sk-…` pour OpenAI).
 2. **Installez le clavier** : Réglages > Général > Clavier > Claviers > Ajouter > Dictée, puis activez « Autoriser l'accès complet ». Cet accès sert à communiquer avec l'app ; le clavier n'envoie rien lui-même sur Internet.
 3. **Pour dicter** :
    - Passez au clavier Dictée avec le globe 🌐 et touchez le micro.
@@ -29,22 +30,30 @@ Le principe est celui de Wispr Flow : vous démarrez une « session » une fois,
 
 | Réglage | Par défaut | Rôle |
 |---|---|---|
-| Modèle | `gpt-4o-transcribe` | `gpt-4o-mini-transcribe` coûte moitié moins cher |
+| Fournisseur | OpenAI | OpenAI, Mistral (hébergé dans l'UE) ou Microsoft (preview, prix promotionnel jusqu'au 31/12/2026) |
+| Modèle OpenAI | `gpt-transcribe` | Aussi `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1` ou saisie libre |
+| Modèle Mistral | `voxtral-small-transcribe-3` | Aussi `voxtral-mini-transcribe-3` ou saisie libre |
+| Modèle Microsoft | `mai-transcribe-2` | Saisie libre |
+| Région Azure | `eastus` | Région de votre ressource Azure Speech (ex. `westeurope`, `swedencentral`) |
 | Langue | `fr` | Code ISO de la langue parlée |
-| Vocabulaire | sigles OHADA, termes de droit des sociétés | Aide le modèle à bien orthographier vos termes |
-| Nettoyer le texte | désactivé | Ponctue et retire les « euh » sans reformuler (second appel, `gpt-4o-mini`) |
+| Vocabulaire | sigles OHADA, termes de droit des sociétés | Aide le modèle à bien orthographier vos termes (Mistral et Microsoft : 100 termes au maximum) |
+| Nettoyer le texte | désactivé | Ponctue et retire les « euh » sans reformuler (second appel, `gpt-4o-mini`, toujours chez OpenAI avec la clé OpenAI ; sauté sans clé OpenAI) |
+
+Chaque fournisseur a sa propre clé, rangée dans le Trousseau. Les noms de modèles et le format de l'API Azure
+sont à confirmer lors des premiers essais (voir [HANDOFF.md](HANDOFF.md)).
 
 ## Confidentialité
 
-- Votre clé API reste dans le Trousseau de l'iPhone.
-- L'audio est envoyé uniquement à OpenAI, avec votre clé. Il est supprimé du téléphone juste après la transcription.
+- Vos clés API restent dans le Trousseau de l'iPhone.
+- L'audio est envoyé uniquement au fournisseur choisi (OpenAI, Mistral ou Microsoft), avec votre clé. Il est supprimé
+  du téléphone juste après la transcription. Le texte n'est envoyé à OpenAI que si le nettoyage est activé.
 - Pendant une session, iOS affiche le point orange du micro.
 
 ## Sur Mac
 
 Dictée vit dans la barre des menus (icône micro), sans icône dans le Dock.
 
-1. **Première fois** : la fenêtre de réglages s'ouvre. Collez votre clé OpenAI, puis accordez les autorisations :
+1. **Première fois** : la fenêtre de réglages s'ouvre. Choisissez le fournisseur, collez sa clé API, puis accordez les autorisations :
    - **Micro**, pour enregistrer votre voix ;
    - **Accessibilité** (Réglages Système > Confidentialité et sécurité > Accessibilité), pour écouter la touche Fn
      et coller le texte dans l'app au premier plan.
@@ -64,7 +73,7 @@ Dictée vit dans la barre des menus (icône micro), sans icône dans le Dock.
 | Restaurer le presse-papiers | activé | Remet votre ancien presse-papiers environ 1 s après le collage |
 | Lancer à l'ouverture de session | désactivé | Démarre Dictée avec votre Mac |
 
-Sur Mac, la clé reste dans le Trousseau du Mac. Le texte passe un court instant par le presse-papiers pour être collé.
+Sur Mac, les clés restent dans le Trousseau du Mac. Le texte passe un court instant par le presse-papiers pour être collé.
 Sans l'autorisation Accessibilité, il est seulement copié : collez-le avec ⌘V.
 
 ## Compiler le projet

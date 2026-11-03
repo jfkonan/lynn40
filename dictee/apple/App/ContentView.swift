@@ -3,8 +3,16 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var engine: DictationEngine
 
+    @AppStorage(SharedStore.Key.provider, store: SharedStore.shared.defaults)
+    private var provider: TranscriptionProvider = .openai
     @AppStorage(SharedStore.Key.model, store: SharedStore.shared.defaults)
     private var model = SharedStore.Default.model
+    @AppStorage(SharedStore.Key.mistralModel, store: SharedStore.shared.defaults)
+    private var mistralModel = SharedStore.Default.mistralModel
+    @AppStorage(SharedStore.Key.microsoftModel, store: SharedStore.shared.defaults)
+    private var microsoftModel = SharedStore.Default.microsoftModel
+    @AppStorage(SharedStore.Key.azureRegion, store: SharedStore.shared.defaults)
+    private var azureRegion = SharedStore.Default.azureRegion
     @AppStorage(SharedStore.Key.language, store: SharedStore.shared.defaults)
     private var language = SharedStore.Default.language
     @AppStorage(SharedStore.Key.vocabulary, store: SharedStore.shared.defaults)
@@ -15,12 +23,6 @@ struct ContentView: View {
     private var cleanupModel = SharedStore.Default.cleanupModel
     @AppStorage(SharedStore.Key.sessionMinutes, store: SharedStore.shared.defaults)
     private var sessionMinutes = SharedStore.Default.sessionMinutes
-
-    @State private var apiKeyInput = ""
-    @State private var savedKeyHint = ContentView.keyHint(KeychainStore.loadAPIKey())
-    @State private var keyMessage: String?
-
-    private static let transcriptionModels = ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"]
 
     var body: some View {
         NavigationStack {
@@ -34,7 +36,10 @@ struct ContentView: View {
 
                 sessionSection
                 testSection
-                apiKeySection
+                providerSection
+                ForEach(keyProviders) { item in
+                    APIKeySection(provider: item)
+                }
                 transcriptionSection
                 cleanupSection
                 installSection
@@ -97,41 +102,51 @@ struct ContentView: View {
         }
     }
 
-    private var apiKeySection: some View {
+    private var providerSection: some View {
         Section {
-            SecureField("sk-…", text: $apiKeyInput)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button("Enregistrer la clé") { saveKey() }
-                .disabled(apiKeyInput.trimmingCharacters(in: .whitespaces).isEmpty)
-            if let hint = savedKeyHint {
-                HStack {
-                    Text("Clé enregistrée : \(hint)").foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Supprimer", role: .destructive) {
-                        KeychainStore.deleteAPIKey()
-                        savedKeyHint = nil
-                    }
+            Picker("Fournisseur", selection: $provider) {
+                ForEach(TranscriptionProvider.allCases) { item in
+                    Text(item.displayName).tag(item)
                 }
             }
-            if let keyMessage {
-                Text(keyMessage).font(.footnote).foregroundStyle(.red)
+            switch provider {
+            case .openai:
+                Picker("Modèle", selection: $model) {
+                    ForEach(TranscriptionProvider.openai.modelChoices(including: model), id: \.self) { Text($0).tag($0) }
+                }
+                TextField("Autre modèle", text: $model)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            case .mistral:
+                Picker("Modèle", selection: $mistralModel) {
+                    ForEach(TranscriptionProvider.mistral.modelChoices(including: mistralModel), id: \.self) { Text($0).tag($0) }
+                }
+                TextField("Autre modèle", text: $mistralModel)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            case .microsoft:
+                LabeledContent("Modèle") {
+                    TextField(SharedStore.Default.microsoftModel, text: $microsoftModel)
+                        .multilineTextAlignment(.trailing)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+                LabeledContent("Région Azure") {
+                    TextField(SharedStore.Default.azureRegion, text: $azureRegion)
+                        .multilineTextAlignment(.trailing)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
             }
         } header: {
-            Text("Clé API OpenAI")
+            Text("Fournisseur de transcription")
         } footer: {
-            Text("Stockée dans le Trousseau de cet iPhone uniquement. Le clavier n'y a pas accès.")
+            Text(providerFooter)
         }
     }
 
     private var transcriptionSection: some View {
         Section {
-            Picker("Modèle", selection: $model) {
-                ForEach(modelChoices, id: \.self) { Text($0).tag($0) }
-            }
-            TextField("Autre modèle", text: $model)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
             TextField("Langue (code ISO, ex. fr)", text: $language)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -144,7 +159,7 @@ struct ContentView: View {
         } header: {
             Text("Transcription")
         } footer: {
-            Text("Le vocabulaire est transmis au modèle pour qu'il orthographie correctement vos termes (sigles, noms propres, termes juridiques).")
+            Text("Le vocabulaire (termes séparés par des virgules) est transmis au modèle pour qu'il orthographie correctement vos termes (sigles, noms propres, termes juridiques). Mistral et Microsoft en reçoivent les 100 premiers termes.")
         }
     }
 
@@ -159,7 +174,7 @@ struct ContentView: View {
         } header: {
             Text("Mise au propre")
         } footer: {
-            Text("Second appel qui ponctue et retire les « euh » sans reformuler. Ajoute un peu de délai et de coût.")
+            Text("Second appel qui ponctue et retire les « euh » sans reformuler. Ajoute un peu de délai et de coût. Il passe toujours par OpenAI, avec la clé OpenAI, quel que soit le fournisseur ; sans clé OpenAI, il est sauté.")
         }
     }
 
@@ -179,8 +194,16 @@ struct ContentView: View {
 
     // MARK: - Utilitaires
 
-    private var modelChoices: [String] {
-        Self.transcriptionModels.contains(model) ? Self.transcriptionModels : Self.transcriptionModels + [model]
+    /// Clé du fournisseur choisi, plus celle d'OpenAI si le nettoyage est activé.
+    private var keyProviders: [TranscriptionProvider] {
+        TranscriptionProvider.providersNeedingKeys(selected: provider, cleanupEnabled: cleanupEnabled)
+    }
+
+    private var providerFooter: String {
+        if provider == .microsoft {
+            return provider.note + " Indiquez la région de votre ressource Azure Speech (ex. westeurope, swedencentral)."
+        }
+        return provider.note
     }
 
     private var stateLabel: String {
@@ -191,20 +214,62 @@ struct ContentView: View {
         case .error: return "Erreur"
         }
     }
+}
 
-    private func saveKey() {
-        do {
-            try KeychainStore.saveAPIKey(apiKeyInput)
-            savedKeyHint = Self.keyHint(KeychainStore.loadAPIKey())
-            apiKeyInput = ""
-            keyMessage = nil
-        } catch {
-            keyMessage = error.localizedDescription
+/// Clé API d'un fournisseur : saisie, aperçu `sk-…abcd` et suppression (SPEC §4).
+private struct APIKeySection: View {
+    let provider: TranscriptionProvider
+
+    @State private var input = ""
+    @State private var savedHint: String?
+    @State private var message: String?
+
+    var body: some View {
+        Section {
+            SecureField(provider.keyPlaceholder, text: $input)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Enregistrer la clé") { save() }
+                .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            if let hint = savedHint {
+                HStack {
+                    Text("Clé enregistrée : \(hint)").foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Supprimer", role: .destructive) {
+                        KeychainStore.deleteAPIKey(for: provider)
+                        savedHint = nil
+                    }
+                }
+            }
+            if let message {
+                Text(message).font(.footnote).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Clé API \(provider.displayName)")
+        } footer: {
+            Text(footer)
+        }
+        // Lu à l'affichage plutôt que dans `init`, que SwiftUI rappelle à chaque mise à jour de l'écran.
+        .onAppear { savedHint = KeychainStore.preview(of: KeychainStore.loadAPIKey(for: provider)) }
+    }
+
+    private var footer: String {
+        let base = "Stockée dans le Trousseau de cet iPhone uniquement. Le clavier n'y a pas accès."
+        switch provider {
+        case .openai: return base + " Elle sert aussi au nettoyage du texte."
+        case .mistral: return base
+        case .microsoft: return base + " Clé de votre ressource Azure AI Speech."
         }
     }
 
-    private static func keyHint(_ key: String?) -> String? {
-        guard let key, key.count > 8 else { return key == nil ? nil : "••••" }
-        return "\(key.prefix(3))…\(key.suffix(4))"
+    private func save() {
+        do {
+            try KeychainStore.saveAPIKey(input, for: provider)
+            savedHint = KeychainStore.preview(of: KeychainStore.loadAPIKey(for: provider))
+            input = ""
+            message = nil
+        } catch {
+            message = error.localizedDescription
+        }
     }
 }

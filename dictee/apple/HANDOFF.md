@@ -8,24 +8,25 @@ Communique avec l'utilisateur **en français**.
 
 ## Ce que fait le projet
 
-Dictée, sur le principe de Wispr Flow, transcrit la voix avec la clé API OpenAI de l'utilisateur et insère le texte au curseur.
+Dictée, sur le principe de Wispr Flow, transcrit la voix avec la clé API de l'utilisateur, chez le fournisseur qu'il choisit
+(**OpenAI** par défaut, **Mistral** ou **Microsoft** Azure MAI-Transcribe-2), et insère le texte au curseur.
 Le comportement commun aux trois plateformes est défini dans `../SPEC.md` (référence à suivre).
 Ce dossier contient la version iOS (clavier) et la version macOS (barre des menus) ; la version Windows est dans `../windows/`.
 
 | Cible | Plateforme | Rôle |
 |---|---|---|
-| `Dictee` (app) | iOS | Session audio en arrière-plan, enregistrement, appel OpenAI, réglages, clé API dans le Trousseau |
+| `Dictee` (app) | iOS | Session audio en arrière-plan, enregistrement, appel au fournisseur de transcription, réglages, clés API dans le Trousseau |
 | `DicteeKeyboard` (extension) | iOS | Bouton micro, insertion du texte, touches de base (espace, effacer, retour, ponctuation, globe) |
-| `DicteeTests` | iOS | Tests unitaires de la logique sans matériel (multipart, requêtes OpenAI, état partagé, insertion) |
-| `DicteeMac` (app) | macOS 13+ | App de barre des menus : raccourci global, enregistrement, OpenAI, collage au curseur (voir section « macOS ») |
-| `DicteeMacTests` | macOS | Tests unitaires Mac sans matériel (raccourcis, presse-papiers, réglages, règles du pipeline, requêtes OpenAI) |
+| `DicteeTests` | iOS | Tests unitaires de la logique sans matériel (multipart, requêtes OpenAI, Mistral et Azure, parseurs, état partagé, insertion) |
+| `DicteeMac` (app) | macOS 13+ | App de barre des menus : raccourci global, enregistrement, transcription, collage au curseur (voir section « macOS ») |
+| `DicteeMacTests` | macOS | Tests unitaires Mac sans matériel (raccourcis, presse-papiers, réglages, règles du pipeline, requêtes des trois fournisseurs) |
 
 Flux d'une dictée sur iOS :
 
 1. Clavier, micro touché sans session → ouvre `dictee://start` → l'app démarre `AVAudioEngine` (mode audio en arrière-plan).
 2. L'utilisateur revient à son app (« ‹ » en haut à gauche).
 3. Micro touché → notification Darwin `startRecording` → l'app écrit les tampons dans un WAV 16 kHz mono.
-4. Micro retouché → `stopRecording` → l'app envoie le fichier à `POST /v1/audio/transcriptions`, puis, si l'option est active, nettoie le texte via `chat/completions`.
+4. Micro retouché → `stopRecording` → l'app envoie le fichier au fournisseur choisi (`TranscriptionService.transcribe`), puis, si l'option est active, nettoie le texte via `chat/completions` chez OpenAI.
 5. L'app écrit la `Transcript` dans les UserDefaults de l'App Group et poste `transcriptReady` → le clavier insère le texte via `textDocumentProxy`.
 
 L'app rafraîchit `sessionExpiresAt` toutes les 2 s. Le clavier considère la session morte si cette date est dépassée.
@@ -37,7 +38,7 @@ dictee/apple/
 ├── project.yml              # définition XcodeGen (source de vérité du projet)
 ├── Config/Signing.xcconfig  # équipe Apple, préfixe de bundle, App Group  ← à remplir
 ├── App/                     # cible Dictee (iOS)
-├── Core/                    # code portable iOS + macOS (OpenAI, Trousseau, enregistreur WAV, règles du pipeline)
+├── Core/                    # code portable iOS + macOS (fournisseurs de transcription, OpenAI, Trousseau, enregistreur WAV, règles du pipeline)
 ├── Keyboard/                # cible DicteeKeyboard
 ├── Mac/                     # cible DicteeMac (app de barre des menus macOS) ; Mac/Tests = DicteeMacTests
 ├── Shared/                  # état partagé, compilé dans toutes les cibles
@@ -46,6 +47,31 @@ dictee/apple/
 
 `Dictee.xcodeproj` et les `Info.plist` sont **générés** par XcodeGen et ignorés par git.
 Toute modification de structure (cibles, Info.plist, droits) se fait dans `project.yml`.
+
+## Fournisseurs de transcription (SPEC §2 bis)
+
+> **Avertissement** : les API Mistral et Azure, et les noms de modèles (`gpt-transcribe`, `voxtral-small-transcribe-3`,
+> `voxtral-mini-transcribe-3`, `mai-transcribe-2`), ont été décrits d'après des documentations publiques de novembre 2026,
+> **sans vérification en direct**. Les noms de modèles et le format Azure (URL, `api-version=2025-10-15`, partie
+> `definition`, forme de la réponse) sont **à confirmer à la première recette** (l'outil `dictee/bench/` le fait).
+> Si un fournisseur refuse la requête, son message s'affiche tel quel (« Erreur Mistral (422) : … ») : corriger
+> le constructeur de requête concerné dans `Core/TranscriptionService.swift` et son test.
+
+| Élément | Où | Rôle |
+|---|---|---|
+| `TranscriptionProvider` | `Core/TranscriptionProvider.swift` | `openai` / `mistral` / `microsoft`, nom affiché, compte du Trousseau, modèles proposés, phrase d'aide |
+| `TranscriptionService.transcribe(provider:audioURL:settings:keys:)` | `Core/TranscriptionService.swift` | Point d'entrée unique, appelé par `DictationEngine` (iOS) et `DictationController` (Mac) |
+| `makeMistralRequest`, `makeAzureRequest`, `azureDefinition` | idem | Constructeurs de requêtes purs, testés sans réseau (`OpenAIClient.makeTranscriptionRequest` reste celui d'OpenAI) |
+| `vocabularyTerms`, `azureLocale(for:)`, `mistralLanguage(for:)` | idem | Découpage du vocabulaire (100 termes, sans doublons), locale Azure, langue à 2 lettres pour Mistral |
+| `parseTextResponse`, `parseAzureTranscription`, `errorMessage(from:)` | idem | Réponses (`text` ; `combinedPhrases[0].text`, sinon `phrases[].text`) et erreurs (`error.message`, `message`, `detail`) |
+| `TranscriptionService.cleanUp` | idem | Nettoyage toujours chez OpenAI ; sauté sans erreur s'il n'y a pas de clé OpenAI |
+| `KeychainStore` | `Core/KeychainStore.swift` | Une clé par fournisseur : service `com.dictee.openai`, comptes `apiKey` (OpenAI, inchangé), `apiKey.mistral`, `apiKey.microsoft` |
+| `SharedStore` | `Shared/SharedStore.swift` | `dictee.settings.provider`, `mistralModel`, `microsoftModel`, `azureRegion` (repli sur le défaut si vide). Le type `TranscriptionProvider` n'est pas dans `Shared/` : le clavier n'en a pas besoin |
+
+Défauts : fournisseur `openai`, modèle OpenAI `gpt-transcribe`, Mistral `voxtral-small-transcribe-3`,
+Microsoft `mai-transcribe-2`, région Azure `eastus`. Messages : « Clé API Mistral manquante. Ajoutez-la dans les
+réglages de Dictée. », « Erreur Microsoft (401) : … ». Les clés n'apparaissent jamais dans un message d'erreur
+(remplacées par leur aperçu `sk-…abcd`).
 
 ## Étapes
 
@@ -92,6 +118,21 @@ Note chaque point comme OK, KO ou partiel, et décris les problèmes rencontrés
 - [ ] « Enregistrer un essai » → parler → « Arrêter et transcrire » → le texte français apparaît.
 - [ ] Sans clé : message d'erreur clair, pas de plantage.
 - [ ] Clé invalide : le message d'OpenAI (« Incorrect API key… ») s'affiche.
+- [ ] Une clé OpenAI enregistrée avant cette version est toujours reconnue (compte Trousseau `apiKey` inchangé).
+
+**Fournisseurs** (voir l'avertissement de la section « Fournisseurs de transcription »)
+- [ ] Le Picker « Fournisseur » propose OpenAI, Mistral et Microsoft ; la section modèle change avec lui ;
+  la phrase d'aide s'affiche (« Mistral : hébergé dans l'UE », « Microsoft : preview, prix promotionnel jusqu'au 31/12/2026 »).
+- [ ] Chaque fournisseur a son champ de clé (aperçu, « Supprimer ») ; avec le nettoyage activé, la clé OpenAI est aussi proposée.
+- [ ] **OpenAI** : essai avec `gpt-transcribe` (défaut). Si « model not found », essayer `gpt-4o-transcribe` et le noter.
+- [ ] **Mistral** : clé Mistral, essai avec `voxtral-small-transcribe-3` puis `voxtral-mini-transcribe-3` ; les sigles
+  du vocabulaire (OHADA, AUSCGIE…) sont bien orthographiés (`context_bias`). Noter tout refus (« Erreur Mistral (422) : … »).
+- [ ] **Microsoft** : clé Azure AI Speech et région de la ressource (ex. `westeurope`), essai avec `mai-transcribe-2`.
+  Noter tout refus (« Erreur Microsoft (…) : … ») : URL, `api-version`, partie `definition` ou forme de la réponse à corriger.
+- [ ] Région Azure invalide (ex. `west europe`) : « Région Azure invalide… », sans appel réseau.
+- [ ] Fournisseur sans clé : « Clé API Mistral manquante. Ajoutez-la dans les réglages de Dictée. » (idem Microsoft).
+- [ ] Mistral ou Microsoft avec le nettoyage activé mais sans clé OpenAI : le texte brut est inséré, sans erreur.
+- [ ] Mistral ou Microsoft avec le nettoyage activé et une clé OpenAI : le texte est nettoyé.
 
 **Clavier**
 - [ ] Le clavier apparaît dans Réglages > Général > Clavier > Claviers > Ajouter.
@@ -126,7 +167,8 @@ Note chaque point comme OK, KO ou partiel, et décris les problèmes rencontrés
    - Le projet est en Swift 5 : ne passe pas en Swift 6 strict sans traiter ces cas.
 4. **UserDefaults partagés entre processus** : ils peuvent avoir un léger retard. Si le clavier lit un état périmé juste après une notification, une relecture courte (asyncAfter 0,1 s) dans `KeyboardModel` peut suffire.
 5. **Mémoire du clavier** : iOS limite fortement les extensions clavier (environ 48 à 70 Mo). Le clavier ne fait que de l'interface, ça devrait passer. Surveille quand même les éventuels arrêts `EXC_RESOURCE`.
-6. **Noms de modèles OpenAI** : par défaut `gpt-4o-transcribe` et `gpt-4o-mini` (nettoyage). Ils sont modifiables dans l'app. Si OpenAI renvoie « model not found », vérifie les modèles disponibles sur le compte de l'utilisateur.
+6. **Noms de modèles** : par défaut `gpt-transcribe` (OpenAI), `voxtral-small-transcribe-3` (Mistral), `mai-transcribe-2` (Microsoft) et `gpt-4o-mini` (nettoyage), **non vérifiés en direct**. Ils sont modifiables dans l'app (saisie libre). Si un fournisseur renvoie « model not found », vérifie les modèles disponibles sur le compte de l'utilisateur, puis corrige `SharedStore.Default` et `TranscriptionProvider.suggestedModels`.
+7. **Formats Mistral et Azure** : décrits d'après la documentation, non vérifiés. Mistral : champ `context_bias` répété, ni `prompt` ni `response_format`. Azure : `transcriptions:transcribe?api-version=2025-10-15`, parties `audio` et `definition` (JSON), réponse lue dans `combinedPhrases[0].text`. En cas d'écart, corriger `Core/TranscriptionService.swift` et les tests correspondants.
 
 ## macOS (cible `DicteeMac`)
 
@@ -140,8 +182,8 @@ App de barre des menus (pas d'icône dans le Dock, `LSUIElement`), comme Wispr F
    arrivent 0,2 s après l'appui (le micro, lui, tourne dès l'appui) : un Fn+flèche annulé aussitôt ne fait ni son
    ni clignotement. En mode « basculer » avec Fn, la dictée démarre et s'arrête au **relâchement** de Fn, sauf si Fn
    a servi à un raccourci (Fn+flèche…).
-3. Au relâchement : son « Pop », « Transcription… », envoi à OpenAI (`Core/OpenAIClient`), puis nettoyage optionnel
-   avec repli sur le texte brut. Moins de 0,3 s : abandon silencieux. 12 min : arrêt automatique. Ces règles
+3. Au relâchement : son « Pop », « Transcription… », envoi au fournisseur choisi (`Core/TranscriptionService`), puis
+   nettoyage optionnel chez OpenAI avec repli sur le texte brut. Moins de 0,3 s : abandon silencieux. 12 min : arrêt automatique. Ces règles
    (durées, repli, « Aucune parole détectée. ») sont des fonctions pures de `Core/TranscriptionRules`, testées.
 4. `TextInserter` sauvegarde tout le presse-papiers, y place le texte, simule ⌘V, puis restaure le presse-papiers
    après 1 s si son `changeCount` n'a pas bougé. Sans autorisation Accessibilité : « Texte copié : collez-le avec ⌘V ».
@@ -155,7 +197,7 @@ App de barre des menus (pas d'icône dans le Dock, `LSUIElement`), comme Wispr F
 | Fichier (`Mac/`) | Rôle |
 |---|---|
 | `DicteeMacApp.swift` | `@main`, `MenuBarExtra` (icône selon l'état), `AppDelegate` qui lance le contrôleur |
-| `DictationController.swift` | Contrôleur central `@MainActor` : états SPEC §7, raccourci → micro → OpenAI → insertion |
+| `DictationController.swift` | Contrôleur central `@MainActor` : états SPEC §7, raccourci → micro → transcription → insertion |
 | `HotkeyLogic.swift` | Logique pure testable : `FnKeyTracker`, `HotkeyLogic.action`, symbole de menu par état |
 | `HotkeyManager.swift` | Moniteurs NSEvent (Fn, `flagsChanged` keyCode 63), Échap pendant l'enregistrement |
 | `CarbonHotKey.swift` | `RegisterEventHotKey` + `InstallEventHandler` (callback C sans capture, instance via `userData`) |
@@ -167,7 +209,7 @@ App de barre des menus (pas d'icône dans le Dock, `LSUIElement`), comme Wispr F
 | `MacSettings.swift` | Réglages propres au Mac (`dictee.settings.hotkey`, `hotkeyMode`, `soundsEnabled`, `restoreClipboard`, `launchAtLogin`). Comme sur iOS, les clés de SPEC §3 sont stockées avec le préfixe `dictee.settings.` |
 | `Permissions.swift` / `LoginItem.swift` | Micro, Accessibilité, ouverture des Réglages Système ; `SMAppService.mainApp` |
 
-Code partagé avec iOS : `Core/` (OpenAIClient, KeychainStore, BufferRecorder, TranscriptionRules) et `Shared/`
+Code partagé avec iOS : `Core/` (TranscriptionProvider, TranscriptionService, OpenAIClient, KeychainStore, BufferRecorder, TranscriptionRules) et `Shared/`
 (SharedStore, TextJoiner…). `Shared/DarwinNotifier.swift` (signaux app ↔ clavier iOS) est exclu de `DicteeMac` dans `project.yml`.
 Sur Mac, l'Info.plist n'a pas de clé `AppGroupIdentifier` : `AppGroup.defaults` vaut `nil` et `SharedStore`
 retombe sur `UserDefaults.standard`. **C'est voulu** (pas d'App Group sur Mac).
@@ -231,12 +273,14 @@ Note chaque point comme OK, KO ou partiel, dans `RECETTE.md` (section macOS).
 **Installation et premier lancement**
 - [ ] `xcodebuild … -scheme DicteeMac build` et `test` réussissent ; tous les tests `DicteeMacTests` passent.
 - [ ] Au lancement : icône micro dans la barre des menus, aucune icône dans le Dock.
-- [ ] Sans clé (ou sans Accessibilité avec Fn) : la fenêtre de réglages s'ouvre seule, au premier plan.
+- [ ] Sans clé du fournisseur choisi (ou sans Accessibilité avec Fn) : la fenêtre de réglages s'ouvre seule, au premier plan.
 - [ ] Menu : l'état (« Prêt : maintenez Fn pour dicter »), « Dernière transcription », « Réglages… » (⌘,), « Quitter » (⌘Q).
 
 **Réglages**
-- [ ] Clé API : enregistrement, aperçu `sk-…abcd`, « Supprimer ». La clé est visible dans Trousseaux d'accès (service `com.dictee.openai`).
-- [ ] Modèle (liste et saisie libre), langue, vocabulaire, nettoyage : conservés après relance de l'app.
+- [ ] Clé API : enregistrement, aperçu `sk-…abcd`, « Supprimer ». La clé est visible dans Trousseaux d'accès (service `com.dictee.openai`, compte `apiKey`, `apiKey.mistral` ou `apiKey.microsoft`).
+- [ ] Fournisseur, modèle (liste et saisie libre), région Azure, langue, vocabulaire, nettoyage : conservés après relance de l'app.
+- [ ] Fournisseur : la section modèle s'adapte (Microsoft : champs « Modèle » et « Région Azure ») ; la phrase d'aide s'affiche ;
+  la clé du fournisseur choisi est proposée, plus la clé OpenAI quand le nettoyage est activé.
 - [ ] Modèle saisi librement dans « Autre modèle » (ex. `gpt-4o-mini-transcribe`) : il apparaît dans la liste et sert à la dictée suivante.
 - [ ] Changer le Mode (« maintenir » ↔ « basculer ») met aussitôt à jour la consigne du menu (« maintenez Fn… » / « appuyez sur Fn… »).
 - [ ] Autorisations : l'état Micro et Accessibilité se met à jour en moins de 2 s après un changement dans Réglages Système.
@@ -261,6 +305,14 @@ Note chaque point comme OK, KO ou partiel, dans `RECETTE.md` (section macOS).
 - [ ] ⌥Espace en mode maintenir, ⌥ relâchée un peu après Espace : le texte est collé normalement (pas de ⌥⌘V).
 - [ ] Changer de raccourci dans les réglages prend effet immédiatement, sans relancer l'app.
 - [ ] Changer de raccourci ou de Mode pendant une écoute (mode « basculer ») annule la dictée sans message, avec le son de fin.
+
+**Fournisseurs** (voir l'avertissement de la section « Fournisseurs de transcription »)
+- [ ] **OpenAI** (`gpt-transcribe`) : dictée transcrite et insérée. Si « model not found », essayer `gpt-4o-transcribe` et le noter.
+- [ ] **Mistral** (`voxtral-small-transcribe-3`, puis `voxtral-mini-transcribe-3`) : dictée transcrite ; sigles du vocabulaire bien orthographiés.
+- [ ] **Microsoft** (`mai-transcribe-2`, région de la ressource) : dictée transcrite ; noter l'URL, l'`api-version` et la réponse si ça échoue.
+- [ ] Clé invalide : « Erreur Mistral (401) : … » ou « Erreur Microsoft (401) : … », sans la clé dans le message.
+- [ ] Clé du fournisseur absente : « Clé API Mistral manquante. Ajoutez-la dans les réglages de Dictée. » (idem Microsoft).
+- [ ] Mistral ou Microsoft + nettoyage activé sans clé OpenAI : texte brut inséré, aucune erreur ; avec clé OpenAI : texte nettoyé.
 
 **Transcription et nettoyage**
 - [ ] « Nettoyer le texte » activé : dicter « euh bonjour euh je voulais dire merci » → texte ponctué, sans les « euh ».
