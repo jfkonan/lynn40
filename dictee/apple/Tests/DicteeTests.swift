@@ -615,7 +615,7 @@ final class KeyboardLayoutTests: XCTestCase {
         let third = KeyboardLayout.widthUnits(for: letters[2])
         XCTAssertEqual(third.first, 1.5)
         XCTAssertEqual(third.last, 1.5)
-        XCTAssertEqual(third[1], 0.875, accuracy: 0.0001)
+        XCTAssertEqual(third[1], 1.0, accuracy: 0.0001) // 7 caractères (w x c v b n ') : même largeur que la rangée du haut
         XCTAssertEqual(KeyboardLayout.widthUnits(for: letters[3]), [2.5, 5, 2.5])
         let withGlobe = KeyboardLayout.rows(for: .letters, showsGlobe: true)[3]
         XCTAssertEqual(KeyboardLayout.widthUnits(for: withGlobe), [1.25, 1.25, 5, 2.5])
