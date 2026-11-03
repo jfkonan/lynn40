@@ -90,6 +90,23 @@ Règles :
 Si le vocabulaire n'est pas vide, ajouter une ligne :
 `- Orthographie exactement ces termes s'ils apparaissent : <vocabulaire>.`
 
+### Style d'écriture (`writingStyle`)
+
+Valeurs : `brut` (défaut), `formel`, `courriel`, `decontracte`. Libellés : « Brut », « Formel », « Courriel », « Décontracté ».
+- `brut` : comportement inchangé (nettoyage seulement si `cleanupEnabled`).
+- Autre style : le nettoyage s'exécute **même si `cleanupEnabled` est faux** (toujours chez OpenAI ; sans clé OpenAI,
+  texte brut sans erreur). Ajouter à la fin des consignes la ligne du style :
+  - `formel` : `- Style demandé : formel et professionnel. Tu peux ajuster le registre (vocabulaire, tournures) pour un ton soutenu, sans changer le sens, sans résumer et sans rien ajouter.`
+  - `courriel` : `- Style demandé : courriel. Paragraphes courts, ton courtois. N'ajoute une formule d'appel ou de politesse que si elle est dictée. Ne change pas le sens, ne résume pas, n'ajoute rien.`
+  - `decontracte` : `- Style demandé : naturel et décontracté. Phrases simples, ton direct, sans changer le sens, sans résumer et sans rien ajouter.`
+- La ligne de style est ajoutée **après** la ligne de vocabulaire. Elle prime sur la règle « Ne reformule pas » pour le registre uniquement.
+- Disponible d'abord dans le clavier iOS ; macOS et Windows lisent le même réglage plus tard (défaut `brut`, donc sans effet).
+
+### Historique (iOS)
+
+L'app garde les **10 dernières transcriptions** (texte, date) dans l'App Group, la plus récente en premier, pour que
+le clavier puisse les réinsérer. Bouton « Effacer l'historique » dans le panneau rapide et dans l'app.
+
 ## 3. Réglages (mêmes noms et valeurs par défaut)
 
 | Réglage | Clé | Défaut |
@@ -102,6 +119,7 @@ Si le vocabulaire n'est pas vide, ajouter une ligne :
 | Langue | `language` | `fr` |
 | Vocabulaire | `vocabulary` | `OHADA, AUSCGIE, AUDCG, AUPCAP, AUPSRVE, CCJA, SARL, SA, SAS, SNC, GIE, RCCM, assemblée générale, conseil d'administration, commissaire aux comptes, gérant, statuts, capital social` |
 | Nettoyer le texte | `cleanupEnabled` | `false` |
+| Style d'écriture | `writingStyle` | `brut` (voir §2, « Style d'écriture ») |
 | Modèle de nettoyage | `cleanupModel` | `gpt-4o-mini` |
 
 Une valeur vide ou faite uniquement d'espaces pour `model`, `mistralModel`, `microsoftModel`, `azureRegion` ou `cleanupModel`
@@ -171,3 +189,34 @@ Une nouvelle dictée est ignorée pendant `transcribing`.
 
 - L'audio n'est envoyé qu'à OpenAI, avec la clé de l'utilisateur. Il est supprimé du disque juste après.
 - Aucune télémétrie, aucun autre serveur.
+
+## 9. Clavier iOS (AZERTY)
+
+Clavier complet, inspiré de la disposition AZERTY d'iOS, avec une barre supérieure de dictée.
+
+**Barre supérieure** (de gauche à droite) :
+- bouton **☰** : ouvre le **panneau rapide** à la place des touches ;
+- **pastille de style** (fond blanc arrondi) : affiche le style courant suivi d'un point (« Brut. », « Formel. »…) ; un toucher
+  ouvre un petit menu des 4 styles. Pendant la dictée, elle affiche « Écoute… » puis « Transcription… » ;
+- **bouton micro** (cercle noir, icône blanche) : même logique de session et d'enregistrement qu'avant ; rouge avec un carré pendant
+  l'écoute ; un appui long pendant l'écoute annule.
+
+**Touches** :
+- Lettres : `A Z E R T Y U I O P` / `Q S D F G H J K L M` / `⇧ W X C V B N ' ⌫` / `123 🌐 espace ⏎`
+  (🌐 seulement si `needsInputModeSwitchKey`). La barre d'espace affiche « Dictée ».
+- Majuscule : un toucher = une majuscule ; double toucher = verrouillage ; majuscule automatique en début de champ et après `. ? !`
+  suivis d'une espace, selon `autocapitalizationType`.
+- Double espace = « . » (comme iOS). Effacement répété en maintenant ⌫.
+- Accents par appui long avec une bulle de choix (glisser puis relâcher) :
+  e → é è ê ë · a → à â æ · c → ç · u → ù û ü · i → î ï · o → ô œ · y → ÿ (et leurs majuscules).
+- Clavier `123` : `1 2 3 4 5 6 7 8 9 0` / `- / : ; ( ) € & @ "` / `#+= . , ? ! ' ⌫` / `ABC espace ⏎`.
+- Clavier `#+=` : `[ ] { } # % ^ * + =` / `_ \ | ~ < > $ £ ¥ •` / `123 . , ? ! ' ⌫` / `ABC espace ⏎`.
+- Aperçu agrandi de la lettre au toucher, clic clavier système (`playInputClick`), couleurs claires et sombres d'iOS.
+- Touche ⏎ : libellé selon `returnKeyType` (« retour », « envoyer », « rechercher », « OK »…).
+
+**Panneau rapide** (☰) :
+- les dernières transcriptions (toucher = insérer) et « Effacer l'historique » ;
+- le style d'écriture, le fournisseur (OpenAI / Mistral / Microsoft) et la langue (`fr`, `en`, ou vide = détection) ;
+- « Ouvrir Dictée » (ouvre l'app via `dictee://settings`) et « Fermer ».
+
+Les réglages modifiés depuis le clavier sont écrits dans l'App Group et pris en compte par l'app à la dictée suivante.
