@@ -21,23 +21,59 @@ le curseur, dans n'importe quelle application. Le modèle est celui de Wispr Flo
    - Durée minimale : **0,3 s**. En dessous, on abandonne sans appel réseau et sans erreur.
    - Audio **entièrement silencieux** (aucun échantillon non nul) : pas d'appel réseau, erreur expliquant que le micro
      est probablement bloqué (sous Windows, l'accès refusé au micro produit du silence numérique sans erreur).
-2. **Transcription** : `POST https://api.openai.com/v1/audio/transcriptions`, en multipart/form-data :
-   - `model` : réglage « Modèle » (défaut `gpt-4o-transcribe`) ;
-   - `response_format=json` ;
-   - `language` : réglage « Langue » (défaut `fr`), omis s'il est vide ;
-   - `prompt` : réglage « Vocabulaire », omis s'il est vide ;
-   - `file` : le WAV (`audio/wav`).
-   - En-tête `Authorization: Bearer <clé>`. Délai d'attente : 120 s.
-   - Réponse : `{"text": "..."}`.
+2. **Transcription** : selon le réglage « Fournisseur » (`provider`), voir §2 bis. Réponse attendue : un texte brut.
 3. **Nettoyage (optionnel, désactivé par défaut)** : `POST /v1/chat/completions` avec le modèle « Modèle de nettoyage »
-   (défaut `gpt-4o-mini`), un message `system` contenant les consignes ci-dessous et un message `user` contenant le texte brut.
+   (défaut `gpt-4o-mini`), toujours chez **OpenAI** avec la clé OpenAI, quel que soit le fournisseur de transcription, un message `system` contenant les consignes ci-dessous et un message `user` contenant le texte brut.
    - `temperature: 0` **uniquement** si le nom du modèle commence par `gpt-4`, car les modèles de raisonnement refusent ce paramètre.
    - Délai d'attente : 60 s.
    - **Si le nettoyage échoue ou renvoie un texte vide, on garde le texte brut.**
+   - Si aucune clé OpenAI n'est enregistrée, le nettoyage est sauté sans erreur (texte brut).
 4. **Texte vide** après nettoyage : erreur « Aucune parole détectée. »
 5. **Suppression** du fichier audio dans tous les cas : succès, erreur ou annulation.
-6. **Erreurs HTTP** : afficher « Erreur OpenAI (<code>) : <error.message> », en lisant `error.message` dans le JSON de réponse.
+6. **Erreurs HTTP** : afficher « Erreur <Fournisseur> (<code>) : <message> » (Fournisseur = `OpenAI`, `Mistral` ou `Microsoft`).
+   `<message>` est lu dans `error.message`, sinon `message` à la racine, sinon `detail` (texte ou JSON), dans le JSON de réponse.
    À défaut, afficher les 300 premiers caractères du corps de la réponse.
+
+## 2 bis. Fournisseurs de transcription
+
+Trois fournisseurs, choisis par `provider`. Chacun a **sa propre clé** (§4) et son propre réglage de modèle.
+Le vocabulaire est découpé en **termes** sur les virgules, points-virgules et retours à la ligne, espaces retirées,
+termes vides ignorés, doublons retirés (en gardant le premier), **100 termes au maximum**.
+
+### `openai` (défaut)
+- `POST https://api.openai.com/v1/audio/transcriptions`, multipart/form-data, en-tête `Authorization: Bearer <clé OpenAI>`.
+- Champs : `model` (réglage `model`), `response_format=json`, `language` (omis si vide), `prompt` = vocabulaire **brut** (omis si vide),
+  `file` (`audio/wav`).
+- Réponse : `{"text": "..."}`. Délai : 120 s.
+
+### `mistral` (Mistral Voxtral, hébergé dans l'UE)
+- `POST https://api.mistral.ai/v1/audio/transcriptions`, multipart/form-data, en-tête `Authorization: Bearer <clé Mistral>`.
+- Champs : `model` (réglage `mistralModel`), `language` (code à 2 lettres ; omis si vide ; si le réglage contient `fr-FR`,
+  n'envoyer que `fr`), un champ **`context_bias` répété une fois par terme** du vocabulaire, `file` (`audio/wav`).
+  **Ne pas** envoyer `prompt` ni `response_format`.
+- Réponse : JSON contenant `text`. Délai : 120 s.
+
+### `microsoft` (Azure AI Speech, MAI-Transcribe-2, « fast transcription »)
+- `POST https://<région>.api.cognitive.microsoft.com/speechtotext/transcriptions:transcribe?api-version=2025-10-15`
+  (`<région>` = réglage `azureRegion`), en-tête `Ocp-Apim-Subscription-Key: <clé Azure>`.
+- Corps multipart/form-data à deux parties :
+  - `audio` : le WAV (`audio/wav`, nom de fichier `audio.wav`) ;
+  - `definition` : JSON (`application/json`) :
+    ```json
+    {
+      "locales": ["fr-FR"],
+      "enhancedMode": { "enabled": true, "model": "<réglage microsoftModel>" },
+      "phraseList": { "phrases": ["OHADA", "AUSCGIE", "..."] }
+    }
+    ```
+    - `locales` : déduit de `language` (`fr` → `fr-FR`, `en` → `en-US`, `es` → `es-ES`, `de` → `de-DE`, `it` → `it-IT`,
+      `pt` → `pt-BR`, `nl` → `nl-NL`, `ar` → `ar-SA` ; une valeur contenant déjà `-` est reprise telle quelle ;
+      autre code à 2 lettres `xx` → `xx-XX`). Clé `locales` omise si `language` est vide.
+    - `phraseList` omis si aucun terme.
+- Réponse : texte = `combinedPhrases[0].text` ; si absent, concaténer `phrases[].text` avec des espaces. Délai : 120 s.
+
+Ces trois API ont été décrites à partir de documentations publiques de novembre 2026, non vérifiées en direct.
+Les noms de modèles et le format Azure doivent être confirmés à la première recette (l'outil `dictee/bench/` le fait).
 
 ### Consignes de nettoyage (texte exact, à recopier tel quel)
 
@@ -58,13 +94,18 @@ Si le vocabulaire n'est pas vide, ajouter une ligne :
 
 | Réglage | Clé | Défaut |
 |---|---|---|
-| Modèle | `model` | `gpt-4o-transcribe` (choix proposés : `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1`, ou saisie libre) |
+| Fournisseur | `provider` | `openai` (valeurs : `openai`, `mistral`, `microsoft`) |
+| Modèle OpenAI | `model` | `gpt-transcribe` (choix : `gpt-transcribe`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1`, ou saisie libre) |
+| Modèle Mistral | `mistralModel` | `voxtral-small-transcribe-3` (choix : `voxtral-small-transcribe-3`, `voxtral-mini-transcribe-3`, ou saisie libre) |
+| Modèle Microsoft | `microsoftModel` | `mai-transcribe-2` (saisie libre) |
+| Région Azure | `azureRegion` | `eastus` (saisie libre, ex. `westeurope`, `swedencentral`) |
 | Langue | `language` | `fr` |
 | Vocabulaire | `vocabulary` | `OHADA, AUSCGIE, AUDCG, AUPCAP, AUPSRVE, CCJA, SARL, SA, SAS, SNC, GIE, RCCM, assemblée générale, conseil d'administration, commissaire aux comptes, gérant, statuts, capital social` |
 | Nettoyer le texte | `cleanupEnabled` | `false` |
 | Modèle de nettoyage | `cleanupModel` | `gpt-4o-mini` |
 
-Une valeur vide ou faite uniquement d'espaces pour `model` ou `cleanupModel` revient à la valeur par défaut.
+Une valeur vide ou faite uniquement d'espaces pour `model`, `mistralModel`, `microsoftModel`, `azureRegion` ou `cleanupModel`
+revient à la valeur par défaut. Une valeur inconnue pour `provider` revient à `openai`.
 
 Sur iOS et macOS, ces clés sont stockées avec le préfixe `dictee.settings.` dans UserDefaults (ex. `dictee.settings.model`).
 Sous Windows, elles figurent telles quelles (camelCase) dans `%APPDATA%\Dictee\settings.json`.
@@ -83,14 +124,17 @@ Pour un ordinateur, prévoir au moins deux raccourcis :
 - **maintenir** une touche seule (Fn, Ctrl droit…) ;
 - **basculer** avec une combinaison : macOS ⌥Espace, Windows Ctrl+Maj+Espace.
 
-## 4. Clé API
+## 4. Clés API
 
-- Elle est stockée de façon chiffrée et propre à la machine :
-  - Trousseau sur iOS et macOS ;
-  - DPAPI (portée utilisateur courant) sur Windows, dans `%APPDATA%\Dictee\apikey.bin`.
-- Elle ne figure jamais dans le code, les journaux, le fichier de réglages ou un message d'erreur.
-- L'interface n'affiche qu'un aperçu : `sk-…abcd` (3 premiers et 4 derniers caractères).
-- Si elle manque : « Clé API OpenAI manquante. Ajoutez-la dans les réglages de Dictée. »
+- **Une clé par fournisseur** (OpenAI, Mistral, Microsoft/Azure), stockée de façon chiffrée et propre à la machine :
+  - Trousseau sur iOS et macOS : service `com.dictee.openai`, compte `apiKey` pour OpenAI (inchangé, compatibilité),
+    `apiKey.mistral` pour Mistral, `apiKey.microsoft` pour Microsoft ;
+  - DPAPI (portée utilisateur courant) sur Windows : `%APPDATA%\Dictee\apikey.bin` pour OpenAI (inchangé),
+    `apikey-mistral.bin`, `apikey-microsoft.bin`.
+- Elles ne figurent jamais dans le code, les journaux, le fichier de réglages ou un message d'erreur.
+- L'interface n'affiche qu'un aperçu : 3 premiers et 4 derniers caractères (`sk-…abcd`).
+- Si la clé du fournisseur choisi manque : « Clé API <Fournisseur> manquante. Ajoutez-la dans les réglages de Dictée. »
+  (ex. « Clé API Mistral manquante… »).
 
 ## 5. Insertion du texte (ordinateurs)
 
