@@ -20,9 +20,20 @@ final class SettingsWindowController {
         }
         let window = self.window ?? makeWindow()
         self.window = window
+        bringToFront(window)
+        // Le menu de la barre des menus se ferme après l'action et macOS rend alors la main à l'app
+        // précédente : on remet la fenêtre devant une fois le menu refermé.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self, weak window] in
+            guard let self, let window else { return }
+            self.bringToFront(window)
+        }
+    }
+
+    private func bringToFront(_ window: NSWindow) {
         // Une app LSUIElement n'est jamais active d'elle-même : sans ça, la fenêtre reste derrière.
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
     }
 
     private func makeWindow() -> NSWindow {
