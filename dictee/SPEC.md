@@ -208,7 +208,9 @@ Clavier complet, inspiré de la disposition AZERTY d'iOS, avec une barre supéri
 - sources, dans l'ordre : le **vocabulaire** et les mots des **dernières transcriptions** (sigles, noms propres), puis le
   dictionnaire du système (`UITextChecker`) dans la **langue de dictée** (`fr`, `en` ; vide = langue du clavier) ;
 - rien de proposé : champ mot de passe, nombre, adresse e-mail, URL ou recherche, champ refusant la correction,
-  claviers `123` / `#+=`, panneau rapide ouvert. Ce n'est pas une prédiction du mot suivant : sans texte en cours, la barre est vide.
+  claviers `123` / `#+=`, panneau rapide ouvert. Ce n'est pas une prédiction du mot suivant : sans texte en cours, la barre est vide ;
+- **espace intelligente** : l'espace ajoutée après une proposition acceptée (ou une correction rétablie) est retirée si la touche
+  suivante est `. , ; : ! ?`, qui est alors suivie d'une espace (« mot , » → « mot, »), comme sur iOS.
 
 **Correction automatique** (réglage `autocorrectEnabled`, activé par défaut, dans l'app) :
 - à l'espace ou à une ponctuation (`. , ; : ! ?`) après un mot **inconnu du dictionnaire** de la langue de dictée, le mot est

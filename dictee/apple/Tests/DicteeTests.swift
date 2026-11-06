@@ -1131,3 +1131,16 @@ final class AutoCorrectionTests: XCTestCase {
         XCTAssertEqual(AutoCorrection.levenshtein("", "abc"), 3)
     }
 }
+
+final class SmartSpaceRuleTests: XCTestCase {
+    func testPonctuationApresEspaceIntelligente() {
+        XCTAssertTrue(SmartSpaceRule.shouldReplaceSpace(typed: ",", contextBefore: "tribunal ", smartSpacePending: true))
+        XCTAssertEqual(SmartSpaceRule.replacement(for: ","), ", ")
+    }
+
+    func testSansEspaceIntelligenteOuSansEspaceRienNeChange() {
+        XCTAssertFalse(SmartSpaceRule.shouldReplaceSpace(typed: ",", contextBefore: "tribunal ", smartSpacePending: false))
+        XCTAssertFalse(SmartSpaceRule.shouldReplaceSpace(typed: ",", contextBefore: "tribunal", smartSpacePending: true))
+        XCTAssertFalse(SmartSpaceRule.shouldReplaceSpace(typed: "a", contextBefore: "tribunal ", smartSpacePending: true))
+    }
+}

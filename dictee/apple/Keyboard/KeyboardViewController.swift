@@ -91,9 +91,10 @@ final class KeyboardViewController: UIInputViewController {
         prediction.scheduleRefresh()
     }
 
-    /// Une proposition a été insérée : majuscule automatique et traits réévalués comme après une frappe.
-    func documentChangedByPrediction() {
-        typing.documentChanged()
+    /// Une proposition a été insérée (suivie d'une espace absorbable par une ponctuation) : majuscule automatique
+    /// et traits réévalués comme après une frappe.
+    func documentChangedByPrediction(smartSpace: Bool = true) {
+        typing.documentChanged(smartSpace: smartSpace)
     }
 
     /// Clavier 123 / #+= ou panneau rapide : les conditions d'affichage des suggestions ont changé.

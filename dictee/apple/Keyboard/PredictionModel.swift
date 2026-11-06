@@ -93,7 +93,7 @@ final class PredictionModel: ObservableObject {
         lastCorrection = nil
         for _ in 0..<(correction.corrected.count + correction.boundary.count) { controller.deleteBackward() }
         controller.insert(correction.original + correction.boundary)
-        controller.documentChangedByPrediction()
+        controller.documentChangedByPrediction(smartSpace: correction.boundary == " ")
         return true
     }
 

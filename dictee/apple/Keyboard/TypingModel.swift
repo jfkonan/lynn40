@@ -52,6 +52,8 @@ final class TypingModel: ObservableObject {
     private var deleteRepeatTask: Task<Void, Never>?
     /// Heure (horloge monotone) de la dernière espace tapée, pour le double espace.
     private var lastSpaceTime: TimeInterval?
+    /// Une espace vient d'être ajoutée par une suggestion acceptée ou une correction rétablie (SPEC §9, espace intelligente).
+    private var smartSpacePending = false
 
     init(controller: KeyboardViewController) {
         self.controller = controller
@@ -71,7 +73,9 @@ final class TypingModel: ObservableObject {
     }
 
     /// Le champ a changé (curseur déplacé, autre champ, texte inséré) : traits du champ et majuscule automatique.
-    func documentChanged() {
+    /// `smartSpace` : le texte inséré se termine par une espace que la ponctuation suivante pourra absorber.
+    func documentChanged(smartSpace: Bool = false) {
+        smartSpacePending = smartSpace
         updateTraits()
         refreshShift()
     }
@@ -281,8 +285,14 @@ final class TypingModel: ObservableObject {
     }
 
     private func typeText(_ text: String) {
-        if AutoCorrection.isBoundary(text) { controller?.autocorrectBeforeBoundary(text) }
-        controller?.insert(text)
+        if SmartSpaceRule.shouldReplaceSpace(typed: text, contextBefore: controller?.contextBeforeInput, smartSpacePending: smartSpacePending) {
+            controller?.deleteBackward()
+            controller?.insert(SmartSpaceRule.replacement(for: text))
+        } else {
+            if AutoCorrection.isBoundary(text) { controller?.autocorrectBeforeBoundary(text) }
+            controller?.insert(text)
+        }
+        smartSpacePending = false
         lastSpaceTime = nil
         refreshShift()
     }
@@ -300,11 +310,13 @@ final class TypingModel: ObservableObject {
             controller?.insert(" ")
             lastSpaceTime = now
         }
+        smartSpacePending = false
         refreshShift()
     }
 
     private func deleteOnce() {
         lastSpaceTime = nil
+        smartSpacePending = false
         if controller?.revertCorrectionIfJustApplied() == true { return }
         controller?.deleteBackward()
         refreshShift()

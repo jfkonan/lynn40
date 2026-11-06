@@ -139,3 +139,21 @@ enum ReturnKeyKind: Hashable, Sendable, CaseIterable {
         }
     }
 }
+
+/// Espace « intelligente » (SPEC §9) : l'espace ajoutée après une suggestion acceptée ou une correction rétablie
+/// est retirée si la touche suivante est une ponctuation, qui est alors suivie d'une espace, comme sur iOS
+/// (« mot , » → « mot, »).
+enum SmartSpaceRule {
+    static let punctuation = ".,;:!?"
+
+    /// Vrai si l'espace en fin de contexte doit être remplacée par `typed` suivi d'une espace.
+    static func shouldReplaceSpace(typed: String, contextBefore: String?, smartSpacePending: Bool) -> Bool {
+        guard smartSpacePending, typed.count == 1, punctuation.contains(typed) else { return false }
+        return contextBefore?.last == " "
+    }
+
+    /// Texte inséré à la place de l'espace retirée.
+    static func replacement(for typed: String) -> String {
+        typed + " "
+    }
+}
