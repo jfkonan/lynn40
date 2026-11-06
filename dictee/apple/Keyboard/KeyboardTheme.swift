@@ -2,8 +2,9 @@ import SwiftUI
 import UIKit
 
 /// Couleurs du clavier, proches de celles d'iOS en mode clair et sombre.
-/// Couleurs dynamiques (`UIColor` à fournisseur) : elles suivent `userInterfaceStyle`, que
-/// `KeyboardViewController` force selon `keyboardAppearance` du champ. Énumération non isolée :
+/// Couleurs dynamiques (`UIColor` à fournisseur) : SwiftUI les résout selon le `colorScheme` de l'environnement,
+/// que `KeyboardRootView` reçoit de `KeyboardModel.colorScheme` (champ puis système, `KeyboardAppearanceLogic`).
+/// Énumération non isolée :
 /// le fournisseur de couleur n'est jamais créé dans un contexte `@MainActor`.
 enum KeyboardTheme {
     /// Fond du clavier (gris clair comme sur la maquette, gris anthracite en mode sombre).

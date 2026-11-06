@@ -40,8 +40,9 @@ final class KeyboardModel: ObservableObject {
         return choices + [LanguageChoice(code: language, label: language)]
     }
 
-    /// Mode d'affichage imposé à la vue SwiftUI (sombre du système ou du champ) ; `nil` = celui de l'environnement.
-    @Published var colorScheme: ColorScheme?
+    /// Mode clair ou sombre poussé dans l'environnement SwiftUI, réglé par `KeyboardViewController`
+    /// (champ puis système, voir `KeyboardAppearanceLogic`).
+    @Published private(set) var colorScheme: ColorScheme = .light
     @Published private(set) var phase: Phase = .needsSession
     @Published private(set) var hint: String?
     @Published private(set) var style: WritingStyle = SharedStore.Default.writingStyle
@@ -61,6 +62,11 @@ final class KeyboardModel: ObservableObject {
 
     init(controller: KeyboardViewController) {
         self.controller = controller
+    }
+
+    func setColorScheme(_ scheme: ColorScheme) {
+        guard colorScheme != scheme else { return }
+        colorScheme = scheme
     }
 
     deinit {

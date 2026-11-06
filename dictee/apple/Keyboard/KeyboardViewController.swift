@@ -38,6 +38,7 @@ final class KeyboardViewController: UIInputViewController {
         ])
         host.didMove(toParent: self)
         hostingController = host
+        observeUserInterfaceStyle()
 
         let height = view.heightAnchor.constraint(equalToConstant: Self.regularHeight)
         height.priority = UILayoutPriority(999)
@@ -166,23 +167,37 @@ final class KeyboardViewController: UIInputViewController {
 
     // MARK: - Apparence
 
-    /// Mode sombre : celui imposé par le champ (`keyboardAppearance` sombre), sinon celui du système.
-    /// Appliqué explicitement à la vue SwiftUI : le mode de l'extension ne se propage pas toujours seul.
+    /// Mode clair ou sombre : celui imposé par le champ (`keyboardAppearance`), sinon celui du système
+    /// (`KeyboardAppearanceLogic`). Poussé explicitement dans l'environnement SwiftUI : dans une extension clavier,
+    /// le mode du système ne se propage pas toujours de lui-même à la vue hébergée. La trait collection du
+    /// contrôleur n'est jamais forcée, pour qu'elle reflète toujours le système.
     private func updateAppearance() {
-        let fieldIsDark = textDocumentProxy.keyboardAppearance == .dark
-        let style: UIUserInterfaceStyle = fieldIsDark ? .dark : .unspecified
-        if overrideUserInterfaceStyle != style {
-            overrideUserInterfaceStyle = style
+        let field: KeyboardAppearanceLogic.FieldAppearance
+        switch textDocumentProxy.keyboardAppearance {
+        case .some(.dark): field = .dark
+        case .some(.light): field = .light
+        default: field = .unspecified
         }
-        let effective: UIUserInterfaceStyle = fieldIsDark ? .dark : traitCollection.userInterfaceStyle
-        let scheme: ColorScheme = effective == .dark ? .dark : .light
-        if model.colorScheme != scheme {
-            model.colorScheme = scheme
+        let systemIsDark = traitCollection.userInterfaceStyle == .dark
+        switch KeyboardAppearanceLogic.scheme(field: field, systemIsDark: systemIsDark) {
+        case .dark: model.setColorScheme(.dark)
+        case .light: model.setColorScheme(.light)
         }
     }
 
+    /// Basculement clair/sombre du système pendant que le clavier est affiché.
+    private func observeUserInterfaceStyle() {
+        if #available(iOS 17.0, *) {
+            registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, _) in
+                self.updateAppearance()
+            }
+        }
+    }
+
+    /// Repli pour iOS 16 ; à partir d'iOS 17, `registerForTraitChanges` prend le relais.
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
+        if #available(iOS 17.0, *) { return }
         if previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle {
             updateAppearance()
         }

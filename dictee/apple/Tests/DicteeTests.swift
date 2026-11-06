@@ -1013,3 +1013,15 @@ final class KeyboardSettingsAndHistoryTests: XCTestCase {
         XCTAssertEqual(SharedStore.updatedHistory(adding: new, to: [], limit: 0), [])
     }
 }
+
+final class KeyboardAppearanceLogicTests: XCTestCase {
+    func testLeChampImposeSonApparence() {
+        XCTAssertEqual(KeyboardAppearanceLogic.scheme(field: .dark, systemIsDark: false), .dark)
+        XCTAssertEqual(KeyboardAppearanceLogic.scheme(field: .light, systemIsDark: true), .light)
+    }
+
+    func testSansConsigneDuChampLeClavierSuitLeSysteme() {
+        XCTAssertEqual(KeyboardAppearanceLogic.scheme(field: .unspecified, systemIsDark: true), .dark)
+        XCTAssertEqual(KeyboardAppearanceLogic.scheme(field: .unspecified, systemIsDark: false), .light)
+    }
+}

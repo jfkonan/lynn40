@@ -22,9 +22,10 @@ final class SettingsWindowController {
         self.window = window
         bringToFront(window)
         // Le menu de la barre des menus se ferme après l'action et macOS rend alors la main à l'app
-        // précédente : on remet la fenêtre devant une fois le menu refermé.
+        // précédente : on remet la fenêtre devant une fois le menu refermé. Pas si l'utilisateur l'a déjà
+        // fermée entre-temps : la rouvrir laisserait Dictée active (voir `returnFocusToPreviousApp`).
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self, weak window] in
-            guard let self, let window else { return }
+            guard let self, let window, window.isVisible else { return }
             self.bringToFront(window)
         }
     }
