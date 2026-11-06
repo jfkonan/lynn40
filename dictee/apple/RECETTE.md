@@ -80,10 +80,10 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 
 | Rubrique | État | Détail |
 |---|---|---|
-| App seule (micro, clés, réglages) | partiel | Micro et lancement OK ; clés et essai de transcription non testés (pas de clé) |
+| App seule (micro, clés, réglages) | OK | Clé OpenAI enregistrée, transcription réussie |
 | Activation du clavier et accès complet | OK | |
 | Ouverture de l'app depuis le clavier (**point à risque n° 1**) | OK | Ouverture et retour dans Notes corrects |
-| Dictée dans Notes | non testé | Demande une clé API |
+| Dictée dans Notes | OK après correctif | Texte jamais inséré au départ, voir §7 |
 | Dictée dans Mail | non testé | Demande une clé API |
 | Dictée dans Safari | non testé | Demande une clé API |
 | Robustesse (arrière-plan, appel, écouteurs, app tuée, dictée longue, musique) | partiel | Session en arrière-plan et point orange OK ; reste non testé (demande une dictée réelle, donc une clé) |
@@ -96,7 +96,7 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 | Accents par appui long | OK | |
 | Majuscules | OK | |
 | 123 et #+= | OK | |
-| Dictée et pastille | partiel | Menu des 4 styles et message d'erreur sans clé OK ; dictée réelle non testée |
+| Dictée et pastille | OK | Dictée réelle dans Notes OK |
 | Styles d'écriture | non testé | Demande une clé OpenAI |
 | Panneau rapide ☰ | OK (ouverture et fermeture) | Historique, fournisseur, langue non testés |
 | Mode sombre | OK après correctif | Clavier resté clair en mode sombre ; corrigé, voir §7 |
@@ -123,3 +123,4 @@ Choix retenu et raison :
 | 1 | Mac : fenêtre « Réglages… » | S'ouvrait derrière les autres fenêtres | Le menu de la barre des menus se ferme après le clic et macOS rend la main à l'app précédente ; app LSUIElement | Remise au premier plan immédiate puis 0,15 s plus tard (`orderFrontRegardless`) | Non (comportement d'interface) | afc3768, b6237f3 (garde si fermée) |
 | 2 | Clavier : mode sombre | Clavier entièrement clair alors que le système est en sombre | Le mode de l'extension ne se propageait pas à la vue SwiftUI | Mode appliqué explicitement (`environment(\.colorScheme)`) et réévalué à chaque changement de mode | Oui, `KeyboardAppearanceLogicTests` (revue : champ clair respecté, plus d'override, iOS 17) | 3e308c0, b6237f3 |
 | 3 | Mac : touche Fn (point à risque) | Fn ne déclenche rien | Sur ce MacBook Air (Mac16,13, macOS 27.3), l'événement `flagsChanged` (keyCode 63) arrive mais sans le drapeau `.function`, et un seul événement par geste : appui et relâchement indiscernables | Aucun pour l'instant : contournement par ⌥Espace. Pistes : CGEventTap ou IOHID | Non | non corrigé |
+| 4 | iPhone : texte non inséré | Transcription réussie (visible dans l'app) mais rien n'apparaît dans le champ | Lecture unique des UserDefaults partagés au signal `transcriptReady`, parfois en retard (point à risque n° 4) ; transcription marquée consommée avant insertion | Relectures à 0,15 / 0,5 / 1,5 s, vérification au retour `idle`, consommation après insertion réelle | Non (inter-processus) | 1bcc5f1 |
