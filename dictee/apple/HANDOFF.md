@@ -434,6 +434,10 @@ Note chaque point comme OK, KO ou partiel, dans `RECETTE.md` (section macOS).
 3. **Fn** : les moniteurs globaux ne reçoivent rien sans Accessibilité, ni pendant la saisie d'un mot de passe
    (saisie sécurisée). Certains claviers externes n'ont pas de touche Fn visible par macOS : utiliser ⌥Espace.
    Le moniteur `keyDown` global sert uniquement à détecter Fn + autre touche ; il ne lit ni ne stocke les frappes.
+   **Constaté le 2026-11-06 sur MacBook Air (Mac16,13, macOS 27.3)** : `flagsChanged` (keyCode 63) arrive bien, mais sans le
+   drapeau `.function` et en un seul événement par geste (appui bref ou long) : « maintenir » est impossible avec les
+   moniteurs NSEvent. Réglage « Appuyer sur 🌐 » sur « Ne rien faire » et aucun remappage de touche. Contournement :
+   ⌥Espace. Pistes non explorées : `CGEventTap` ou IOHID.
 4. **⌘V simulé** : keyCode 9 (`kVK_ANSI_V`) correspond à V en QWERTY et AZERTY, mais pas en Dvorak.
    Certaines apps (terminaux distants, jeux, VM) ignorent les événements synthétiques ; le texte reste alors
    au presse-papiers pendant 1 s seulement si la restauration est active.

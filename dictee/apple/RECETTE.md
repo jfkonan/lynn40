@@ -72,7 +72,7 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 | Autorisations Micro et Accessibilité ; 🌐 réglé sur « Ne rien faire » | OK | |
 | Raccourcis (Fn maintenu, ⌥Espace) | partiel | ⌥Espace OK ; Fn KO sur ce Mac, voir §7 |
 | Insertion (presse-papiers + ⌘V, restauration) | OK (dictée dans Notes avec ⌥Espace) | Restauration du presse-papiers non vérifiée |
-| Pastille, sons, Échap | non testé | |
+| Pastille, sons, Échap | non testé | À tester avec ⌥Espace |
 | Réglages, fournisseurs, styles | partiel | Fenêtre « Réglages… » KO au départ (derrière les autres), corrigée ; voir §7 |
 | Lancement au démarrage | non testé | |
 
