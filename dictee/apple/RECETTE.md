@@ -70,9 +70,9 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 |---|---|---|
 | Installation et premier lancement | OK | Icône dans la barre des menus (peut être masquée par l'encoche), rien dans le Dock |
 | Autorisations Micro et Accessibilité ; 🌐 réglé sur « Ne rien faire » | OK | |
-| Raccourcis (Fn maintenu, ⌥Espace) | non testé | Demande une clé API |
-| Insertion (presse-papiers + ⌘V, restauration) | non testé | Demande une clé API |
-| Pastille, sons, Échap | non testé | Demande une clé API |
+| Raccourcis (Fn maintenu, ⌥Espace) | partiel | ⌥Espace OK ; Fn KO sur ce Mac, voir §7 |
+| Insertion (presse-papiers + ⌘V, restauration) | OK (dictée dans Notes avec ⌥Espace) | Restauration du presse-papiers non vérifiée |
+| Pastille, sons, Échap | non testé | |
 | Réglages, fournisseurs, styles | partiel | Fenêtre « Réglages… » KO au départ (derrière les autres), corrigée ; voir §7 |
 | Lancement au démarrage | non testé | |
 
@@ -122,3 +122,4 @@ Choix retenu et raison :
 |---|---|---|---|---|---|---|
 | 1 | Mac : fenêtre « Réglages… » | S'ouvrait derrière les autres fenêtres | Le menu de la barre des menus se ferme après le clic et macOS rend la main à l'app précédente ; app LSUIElement | Remise au premier plan immédiate puis 0,15 s plus tard (`orderFrontRegardless`) | Non (comportement d'interface) | afc3768 |
 | 2 | Clavier : mode sombre | Clavier entièrement clair alors que le système est en sombre | Le mode de l'extension ne se propageait pas à la vue SwiftUI | Mode appliqué explicitement (`environment(\.colorScheme)`) et réévalué à chaque changement de mode | Non (rendu visuel) | 3e308c0 |
+| 3 | Mac : touche Fn (point à risque) | Fn ne déclenche rien | Sur ce MacBook Air (Mac16,13, macOS 27.3), l'événement `flagsChanged` (keyCode 63) arrive mais sans le drapeau `.function`, et un seul événement par geste : appui et relâchement indiscernables | Aucun pour l'instant : contournement par ⌥Espace. Pistes : CGEventTap ou IOHID | Non | non corrigé |
