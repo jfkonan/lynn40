@@ -64,7 +64,7 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillDisappear(animated)
         model.disappear()
         typing.disappear()
-        prediction.disappear()
+        prediction.reset()
     }
 
     override func viewWillLayoutSubviews() {
@@ -100,9 +100,28 @@ final class KeyboardViewController: UIInputViewController {
         prediction.scheduleRefresh()
     }
 
+    /// Avant une espace ou une ponctuation : correction automatique du mot en cours (SPEC §9).
+    func autocorrectBeforeBoundary(_ boundary: String) {
+        prediction.autocorrectBeforeBoundary(boundary)
+    }
+
+    /// ⌫ juste après une correction automatique : rétablit le mot tapé au lieu d'effacer.
+    func revertCorrectionIfJustApplied() -> Bool {
+        prediction.revertCorrection()
+    }
+
     /// Suggestions utiles seulement pour du texte courant en lettres : pas de mot de passe, de nombre, d'adresse
     /// ou d'URL, ni quand le champ refuse la correction, ni sur les claviers 123 / #+= ou le panneau rapide.
     var predictionsAllowed: Bool {
+        fieldAcceptsCorrections && typing.layer == .letters && !model.panelOpen
+    }
+
+    /// La correction automatique vaut aussi depuis le clavier 123 (espace ou virgule après un mot en lettres).
+    var autocorrectAllowed: Bool {
+        fieldAcceptsCorrections && !model.panelOpen
+    }
+
+    private var fieldAcceptsCorrections: Bool {
         let proxy = textDocumentProxy
         if proxy.isSecureTextEntry == true { return false }
         if proxy.autocorrectionType == .no { return false }
@@ -111,9 +130,8 @@ final class KeyboardViewController: UIInputViewController {
              .some(.emailAddress), .some(.URL), .some(.webSearch), .some(.asciiCapableNumberPad):
             return false
         default:
-            break
+            return true
         }
-        return typing.layer == .letters && !model.panelOpen
     }
 
     /// Insère une dictée au curseur. Renvoie `false` si le clavier n'est pas attaché à un champ (vue hors écran) :

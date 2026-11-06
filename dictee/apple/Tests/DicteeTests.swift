@@ -1082,3 +1082,42 @@ final class WordPredictionTests: XCTestCase {
         XCTAssertEqual(WordPrediction.words(in: "OHADA, AUSCGIE ; assemblée générale."), ["OHADA", "AUSCGIE", "assemblée", "générale"])
     }
 }
+
+final class AutoCorrectionTests: XCTestCase {
+    func testFrontieres() {
+        XCTAssertTrue(AutoCorrection.isBoundary(" "))
+        XCTAssertTrue(AutoCorrection.isBoundary(","))
+        XCTAssertFalse(AutoCorrection.isBoundary("a"))
+        XCTAssertFalse(AutoCorrection.isBoundary("\n"))
+    }
+
+    func testMotsProteges() {
+        XCTAssertTrue(AutoCorrection.isCandidate("tribunla", protected: []))
+        XCTAssertFalse(AutoCorrection.isCandidate("la", protected: []), "trop court")
+        XCTAssertFalse(AutoCorrection.isCandidate("OHADA", protected: []), "sigle")
+        XCTAssertFalse(AutoCorrection.isCandidate("McDonald", protected: []), "majuscule interne")
+        XCTAssertFalse(AutoCorrection.isCandidate("auscgie", protected: ["AUSCGIE"]), "vocabulaire, casse ignorée")
+        XCTAssertFalse(AutoCorrection.isCandidate("abc1", protected: []), "chiffre")
+    }
+
+    func testChoixDeLaCorrection() {
+        XCTAssertEqual(AutoCorrection.pick(for: "tribunla", guesses: ["tribunal", "tribune"]), "tribunal")
+        XCTAssertEqual(AutoCorrection.pick(for: "Tribunla", guesses: ["tribunal"]), "Tribunal")
+        XCTAssertNil(AutoCorrection.pick(for: "bonjour", guesses: ["bonjour"]), "identique")
+        XCTAssertNil(AutoCorrection.pick(for: "avocta", guesses: ["juge"]), "trop éloigné")
+        XCTAssertEqual(AutoCorrection.pick(for: "les", guesses: ["lès"]), "lès")
+    }
+
+    func testAnnulationPossibleTantQueLeTexteNaPasChange() {
+        let correction = AutoCorrection.Correction(original: "tribunla", corrected: "tribunal", boundary: " ")
+        XCTAssertTrue(AutoCorrection.isStillApplied(correction, before: "Le tribunal "))
+        XCTAssertFalse(AutoCorrection.isStillApplied(correction, before: "Le tribunal de"))
+        XCTAssertFalse(AutoCorrection.isStillApplied(correction, before: nil))
+    }
+
+    func testLevenshtein() {
+        XCTAssertEqual(AutoCorrection.levenshtein("tribunla", "tribunal"), 2)
+        XCTAssertEqual(AutoCorrection.levenshtein("abc", "abc"), 0)
+        XCTAssertEqual(AutoCorrection.levenshtein("", "abc"), 3)
+    }
+}

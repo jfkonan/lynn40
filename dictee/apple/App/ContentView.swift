@@ -23,6 +23,8 @@ struct ContentView: View {
     private var writingStyle: WritingStyle = SharedStore.Default.writingStyle
     @AppStorage(SharedStore.Key.cleanupModel, store: SharedStore.shared.defaults)
     private var cleanupModel = SharedStore.Default.cleanupModel
+    @AppStorage(SharedStore.Key.autocorrectEnabled, store: SharedStore.shared.defaults)
+    private var autocorrectEnabled = SharedStore.Default.autocorrectEnabled
     @AppStorage(SharedStore.Key.sessionMinutes, store: SharedStore.shared.defaults)
     private var sessionMinutes = SharedStore.Default.sessionMinutes
 
@@ -46,6 +48,7 @@ struct ContentView: View {
                 }
                 transcriptionSection
                 cleanupSection
+                keyboardSection
                 historySection
                 installSection
             }
@@ -170,6 +173,16 @@ struct ContentView: View {
             Text("Transcription")
         } footer: {
             Text("Le vocabulaire (termes séparés par des virgules) est transmis au modèle pour qu'il orthographie correctement vos termes (sigles, noms propres, termes juridiques). Mistral et Microsoft en reçoivent les 100 premiers termes.")
+        }
+    }
+
+    private var keyboardSection: some View {
+        Section {
+            Toggle("Correction automatique", isOn: $autocorrectEnabled)
+        } header: {
+            Text("Clavier")
+        } footer: {
+            Text("À l'espace, un mot inconnu du dictionnaire est remplacé par la correction la plus proche ; ⌫ ou la barre de suggestions rétablit le mot tapé. Les sigles, les mots du vocabulaire et des dernières dictées ne sont jamais corrigés.")
         }
     }
 

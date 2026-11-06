@@ -281,6 +281,7 @@ final class TypingModel: ObservableObject {
     }
 
     private func typeText(_ text: String) {
+        if AutoCorrection.isBoundary(text) { controller?.autocorrectBeforeBoundary(text) }
         controller?.insert(text)
         lastSpaceTime = nil
         refreshShift()
@@ -295,6 +296,7 @@ final class TypingModel: ObservableObject {
             controller?.insert(DoubleSpaceRule.replacement)
             lastSpaceTime = nil
         } else {
+            controller?.autocorrectBeforeBoundary(" ")
             controller?.insert(" ")
             lastSpaceTime = now
         }
@@ -302,8 +304,9 @@ final class TypingModel: ObservableObject {
     }
 
     private func deleteOnce() {
-        controller?.deleteBackward()
         lastSpaceTime = nil
+        if controller?.revertCorrectionIfJustApplied() == true { return }
+        controller?.deleteBackward()
         refreshShift()
     }
 

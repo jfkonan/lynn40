@@ -43,6 +43,8 @@ final class SharedStore: @unchecked Sendable {
         static let writingStyle = "dictee.settings.writingStyle"
         static let cleanupModel = "dictee.settings.cleanupModel"
         static let sessionMinutes = "dictee.settings.sessionMinutes"
+        /// Clavier iOS : correction automatique du mot à l'espace (SPEC §9).
+        static let autocorrectEnabled = "dictee.settings.autocorrectEnabled"
     }
 
     enum Default {
@@ -57,6 +59,7 @@ final class SharedStore: @unchecked Sendable {
         static let writingStyle = WritingStyle.brut
         static let cleanupModel = "gpt-4o-mini"
         static let sessionMinutes = 10
+        static let autocorrectEnabled = true
     }
 
     let defaults: UserDefaults
@@ -171,6 +174,7 @@ final class SharedStore: @unchecked Sendable {
 
     var vocabulary: String { defaults.string(forKey: Key.vocabulary) ?? Default.vocabulary }
     var cleanupEnabled: Bool { defaults.object(forKey: Key.cleanupEnabled) as? Bool ?? Default.cleanupEnabled }
+    var autocorrectEnabled: Bool { defaults.object(forKey: Key.autocorrectEnabled) as? Bool ?? Default.autocorrectEnabled }
 
     /// Style d'écriture : valeur inconnue ou absente → brut (SPEC §3). Modifiable depuis le clavier.
     var writingStyle: WritingStyle {

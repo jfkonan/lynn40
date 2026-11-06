@@ -56,6 +56,28 @@ private struct PredictionBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            if let correction = prediction.lastCorrection {
+                Button {
+                    prediction.revertCorrection()
+                } label: {
+                    Text("\u{201C}\(correction.original)\u{201D}")
+                        .font(.system(size: compact ? 15 : 17))
+                        .foregroundColor(KeyboardTheme.keyText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Rétablir \(correction.original)")
+                .accessibilityHint("Annule la correction automatique.")
+                if !prediction.suggestions.isEmpty {
+                    Rectangle()
+                        .fill(KeyboardTheme.secondaryText.opacity(0.35))
+                        .frame(width: 1)
+                        .padding(.vertical, 6)
+                }
+            }
             ForEach(Array(prediction.suggestions.enumerated()), id: \.offset) { index, suggestion in
                 if index > 0 {
                     Rectangle()

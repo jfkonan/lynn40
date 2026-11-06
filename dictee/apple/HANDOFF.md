@@ -175,6 +175,11 @@ Note chaque point comme OK, KO ou partiel, et décris les problèmes rencontrés
 - [ ] Barre vide : clavier `123` / `#+=`, panneau ☰ ouvert, champ mot de passe, e-mail, URL ou recherche ; mode sombre lisible ; paysage : tout tient.
 - [ ] Aucune lenteur sensible à la frappe (le calcul est coalescé à 50 ms).
 
+*Correction automatique*
+- [ ] « tribunla » puis espace → « tribunal » ; la barre montre « tribunla » entre guillemets ; un toucher ou ⌫ immédiat rétablit « tribunla ».
+- [ ] Un sigle (« AUSCGIE »), un mot du vocabulaire ou un mot de 2 lettres n'est jamais corrigé ; une ponctuation (« , ») déclenche aussi la correction.
+- [ ] Réglage « Correction automatique » désactivé dans l'app : plus aucune correction.
+
 *Accents*
 - [ ] Appui long sur e, a, c, u, i, o, y : bulle avec é è ê ë · à â æ · ç · ù û ü · î ï · ô œ · ÿ ; glisser puis relâcher insère l'accent choisi.
 - [ ] Relâcher sans glisser insère le premier accent ; glisser nettement vers le bas annule.
@@ -241,6 +246,10 @@ Note chaque point comme OK, KO ou partiel, et décris les problèmes rencontrés
 5. **Mémoire du clavier** : iOS limite fortement les extensions clavier (environ 48 à 70 Mo). Le clavier ne fait que de l'interface : aucune image, couleurs et symboles SF uniquement, liseré des touches dessiné par une forme (pas d'ombre), une seule minuterie (1 s, rafraîchissement de la session, arrêtée à la disparition), appui long et répétition par des `Task` annulées. Surveille quand même les éventuels arrêts `EXC_RESOURCE`.
 6. **Noms de modèles** : par défaut `gpt-transcribe` (OpenAI), `voxtral-small-transcribe-3` (Mistral), `mai-transcribe-2` (Microsoft) et `gpt-4o-mini` (nettoyage), **non vérifiés en direct**. Ils sont modifiables dans l'app (saisie libre). Si un fournisseur renvoie « model not found », vérifie les modèles disponibles sur le compte de l'utilisateur, puis corrige `SharedStore.Default` et `TranscriptionProvider.suggestedModels`.
 7. **Formats Mistral et Azure** : décrits d'après la documentation, non vérifiés. Mistral : champ `context_bias` répété, ni `prompt` ni `response_format`. Azure : `transcriptions:transcribe?api-version=2025-10-15`, parties `audio` et `definition` (JSON), réponse lue dans `combinedPhrases[0].text`. En cas d'écart, corriger `Core/TranscriptionService.swift` et les tests correspondants.
+8 ter. **Correction automatique** (`AutoCorrection`, `PredictionModel.autocorrectBeforeBoundary`) : `UITextChecker`
+   juge « inconnu » tout mot absent de son dictionnaire, noms propres compris ; la protection repose sur le vocabulaire,
+   l'historique, la casse et la distance d'édition. Si des corrections intempestives remontent, ajouter les termes au
+   vocabulaire ou durcir `AutoCorrection.maximumDistance`.
 8 bis. **Barre de suggestions** (`PredictionModel`, `WordPrediction`) : `UITextChecker.completions` renvoie des
    complétions de dictionnaire, à peu près alphabétiques, pas classées par fréquence ; le vocabulaire et l'historique
    passent devant. `UITextChecker.availableLanguages` varie selon les dictionnaires installés : sans `fr_*`/`en_*`

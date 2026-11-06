@@ -7,6 +7,8 @@ import UIKit
 @MainActor
 final class PredictionModel: ObservableObject {
     @Published private(set) var suggestions: [String] = []
+    /// Dernière correction automatique encore annulable (SPEC §9, « Correction automatique »).
+    @Published private(set) var lastCorrection: AutoCorrection.Correction?
     /// Mot en cours au moment du calcul (effacé avant l'insertion de la proposition).
     private(set) var partial = ""
 
@@ -52,6 +54,47 @@ final class PredictionModel: ObservableObject {
         controller.documentChangedByPrediction()
     }
 
+    // MARK: - Correction automatique
+
+    /// À appeler juste avant d'insérer une espace ou une ponctuation : corrige le mot en cours s'il est inconnu.
+    func autocorrectBeforeBoundary(_ boundary: String) {
+        guard let controller, store.autocorrectEnabled, controller.autocorrectAllowed else { return }
+        let word = WordPrediction.partialWord(before: controller.contextBeforeInput)
+        guard AutoCorrection.isCandidate(word, protected: userTerms), let language = checkerLanguage else { return }
+        let probe = word as NSString
+        let range = NSRange(location: 0, length: probe.length)
+        let misspelled = checker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0, wrap: false, language: language)
+        guard misspelled.location != NSNotFound else { return }
+        let guesses = checker.guesses(forWordRange: range, in: word, language: language) ?? []
+        guard let corrected = AutoCorrection.pick(for: word, guesses: guesses) else { return }
+        for _ in 0..<word.count { controller.deleteBackward() }
+        controller.insert(corrected)
+        lastCorrection = AutoCorrection.Correction(original: word, corrected: corrected, boundary: boundary)
+    }
+
+    /// ⌫ juste après une correction, ou toucher sur le mot d'origine dans la barre : rétablit le mot tapé.
+    /// Renvoie `false` s'il n'y a rien à annuler.
+    @discardableResult
+    func revertCorrection() -> Bool {
+        guard let controller, let correction = lastCorrection,
+              AutoCorrection.isStillApplied(correction, before: controller.contextBeforeInput) else { return false }
+        pending?.cancel()
+        pending = nil
+        lastCorrection = nil
+        for _ in 0..<(correction.corrected.count + correction.boundary.count) { controller.deleteBackward() }
+        controller.insert(correction.original + correction.boundary)
+        controller.documentChangedByPrediction()
+        return true
+    }
+
+    private var checkerLanguage: String? {
+        WordPrediction.checkerLanguage(
+            dictation: store.language,
+            available: UITextChecker.availableLanguages,
+            fallback: controller?.primaryLanguage ?? Locale.current.identifier
+        )
+    }
+
     // MARK: - Calcul
 
     private func refresh() {
@@ -59,16 +102,16 @@ final class PredictionModel: ObservableObject {
             clear()
             return
         }
+        // Correction annulable seulement tant que le texte n'a pas bougé après elle.
+        if let correction = lastCorrection, !AutoCorrection.isStillApplied(correction, before: controller.contextBeforeInput) {
+            lastCorrection = nil
+        }
         let word = WordPrediction.partialWord(before: controller.contextBeforeInput)
         guard word.count >= WordPrediction.minimumPartialLength else {
             clear()
             return
         }
-        let language = WordPrediction.checkerLanguage(
-            dictation: store.language,
-            available: UITextChecker.availableLanguages,
-            fallback: controller.primaryLanguage ?? Locale.current.identifier
-        )
+        let language = checkerLanguage
         var dictionary: [String] = []
         if let language {
             let probe = word as NSString
@@ -93,5 +136,11 @@ final class PredictionModel: ObservableObject {
     private func clear() {
         partial = ""
         if !suggestions.isEmpty { suggestions = [] }
+    }
+
+    /// Clavier masqué : plus rien à annuler ni à proposer.
+    func reset() {
+        disappear()
+        lastCorrection = nil
     }
 }

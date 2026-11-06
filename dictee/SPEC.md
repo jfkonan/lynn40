@@ -121,6 +121,7 @@ le clavier puisse les réinsérer. Bouton « Effacer l'historique » dans le pan
 | Nettoyer le texte | `cleanupEnabled` | `false` |
 | Style d'écriture | `writingStyle` | `brut` (voir §2, « Style d'écriture ») |
 | Modèle de nettoyage | `cleanupModel` | `gpt-4o-mini` |
+| Correction automatique (clavier iOS) | `autocorrectEnabled` | `true` |
 
 Une valeur vide ou faite uniquement d'espaces pour `model`, `mistralModel`, `microsoftModel`, `azureRegion` ou `cleanupModel`
 revient à la valeur par défaut. Une valeur inconnue pour `provider` revient à `openai`.
@@ -208,6 +209,13 @@ Clavier complet, inspiré de la disposition AZERTY d'iOS, avec une barre supéri
   dictionnaire du système (`UITextChecker`) dans la **langue de dictée** (`fr`, `en` ; vide = langue du clavier) ;
 - rien de proposé : champ mot de passe, nombre, adresse e-mail, URL ou recherche, champ refusant la correction,
   claviers `123` / `#+=`, panneau rapide ouvert. Ce n'est pas une prédiction du mot suivant : sans texte en cours, la barre est vide.
+
+**Correction automatique** (réglage `autocorrectEnabled`, activé par défaut, dans l'app) :
+- à l'espace ou à une ponctuation (`. , ; : ! ?`) après un mot **inconnu du dictionnaire** de la langue de dictée, le mot est
+  remplacé par la proposition la plus proche (distance d'édition ≤ 1 pour 3 ou 4 lettres, ≤ 2 au-delà), casse conservée ;
+- jamais corrigés : mots de moins de 3 lettres, tout en majuscules ou à majuscule interne (sigles, noms composés), mots du
+  **vocabulaire** et des **dernières transcriptions**, et les champs où la barre de suggestions est masquée ;
+- la barre affiche alors le mot d'origine entre guillemets : un toucher, ou ⌫ tout de suite après, rétablit le mot tapé.
 
 **Touches** :
 - Lettres : `A Z E R T Y U I O P` / `Q S D F G H J K L M` / `⇧ W X C V B N ' ⌫` / `123 🌐 espace ⏎`
