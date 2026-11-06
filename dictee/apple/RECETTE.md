@@ -7,10 +7,10 @@ et le détail des points KO ou partiels (symptôme, cause probable, correctif, c
 | Étape | Date | Où | État |
 |---|---|---|---|
 | Pré-vérification documentaire | 2026-11-05 | Session cloud (Linux, sans Xcode) | Faite, voir ci-dessous |
-| Compilation et tests | à faire | Mac | Non commencée |
-| App Mac | à faire | Mac | Non commencée |
-| iPhone et clavier | à faire | iPhone réel | Non commencée |
-| Banc d'essai des moteurs | à faire | Mac, avec les clés de l'utilisateur | Non commencé |
+| Compilation et tests | 2026-11-06 | Mac | Faite, tout passe |
+| App Mac | 2026-11-06 | Mac | Faite sauf dictée réelle (pas de clé) |
+| iPhone et clavier | 2026-11-06 | iPhone réel | Frappe et ouverture de l'app OK ; dictée non testée (pas de clé) |
+| Banc d'essai des moteurs | à faire | Mac, avec les clés de l'utilisateur | Bloqué : aucune clé API disponible |
 
 ---
 
@@ -48,41 +48,41 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 
 ## 1. Environnement
 
-- Mac (modèle, macOS) :
-- Xcode :
-- XcodeGen :
-- iPhone (modèle, iOS) :
-- `DEVELOPMENT_TEAM` renseigné : oui / non (la valeur n'est pas recopiée ici)
-- `BUNDLE_ID_PREFIX` :
+- Mac (modèle, macOS) : MacBook Air (Mac16,13), macOS 27.3
+- Xcode : 27.2 (27B52)
+- XcodeGen : 2.46.0
+- iPhone (modèle, iOS) : iPhone 18 Pro, iOS 27.3
+- `DEVELOPMENT_TEAM` renseigné : oui, compte gratuit (Personal Team) ; la valeur n'est pas recopiée ici
+- `BUNDLE_ID_PREFIX` : `com.jfkonan`
 
 ## 2. Compilation et tests
 
 | Commande | Résultat | Remarques |
 |---|---|---|
-| `xcodegen generate` | | |
-| `xcodebuild -scheme Dictee … test` (simulateur iOS) | | |
-| `xcodebuild -scheme DicteeMac … test` | | |
-| CI GitHub (`.github/workflows/dictee.yml`) après les correctifs | | |
+| `xcodegen generate` | OK | |
+| `xcodebuild -scheme Dictee … test` (simulateur iOS) | OK, 89 tests | iPhone 17, iOS 27.2 |
+| `xcodebuild -scheme DicteeMac … test` | OK, 39 tests | Signature ad hoc |
+| CI GitHub (`.github/workflows/dictee.yml`) après les correctifs | OK | Verte après afc3768 |
 
 ## 3. macOS (`DicteeMac`)
 
 | Rubrique de la check-list Mac | État | Détail |
 |---|---|---|
-| Installation et premier lancement | | |
-| Autorisations Micro et Accessibilité ; 🌐 réglé sur « Ne rien faire » | | |
-| Raccourcis (Fn maintenu, ⌥Espace) | | |
-| Insertion (presse-papiers + ⌘V, restauration) | | |
-| Pastille, sons, Échap | | |
-| Réglages, fournisseurs, styles | | |
-| Lancement au démarrage | | |
+| Installation et premier lancement | OK | Icône dans la barre des menus (peut être masquée par l'encoche), rien dans le Dock |
+| Autorisations Micro et Accessibilité ; 🌐 réglé sur « Ne rien faire » | OK | |
+| Raccourcis (Fn maintenu, ⌥Espace) | non testé | Demande une clé API |
+| Insertion (presse-papiers + ⌘V, restauration) | non testé | Demande une clé API |
+| Pastille, sons, Échap | non testé | Demande une clé API |
+| Réglages, fournisseurs, styles | partiel | Fenêtre « Réglages… » KO au départ (derrière les autres), corrigée ; voir §7 |
+| Lancement au démarrage | non testé | |
 
 ## 4. iOS : app seule et session
 
 | Rubrique | État | Détail |
 |---|---|---|
 | App seule (micro, clés, réglages) | | |
-| Activation du clavier et accès complet | | |
-| Ouverture de l'app depuis le clavier (**point à risque n° 1**) | | |
+| Activation du clavier et accès complet | OK | |
+| Ouverture de l'app depuis le clavier (**point à risque n° 1**) | OK | Ouverture et retour dans Notes corrects |
 | Dictée dans Notes | | |
 | Dictée dans Mail | | |
 | Dictée dans Safari | | |
@@ -92,14 +92,14 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 
 | Rubrique | État | Détail |
 |---|---|---|
-| Frappe | | |
-| Accents par appui long | | |
-| Majuscules | | |
-| 123 et #+= | | |
+| Frappe | OK | Points 1 à 5 de la série sans clé |
+| Accents par appui long | OK | |
+| Majuscules | OK | |
+| 123 et #+= | OK | |
 | Dictée et pastille | | |
 | Styles d'écriture | | |
-| Panneau rapide ☰ | | |
-| Mode sombre | | |
+| Panneau rapide ☰ | OK (ouverture et fermeture) | Historique, fournisseur, langue non testés |
+| Mode sombre | OK après correctif | Clavier resté clair en mode sombre ; corrigé, voir §7 |
 | Tailles d'écran et paysage | | |
 | Mémoire (< ~40 Mo, aucun `EXC_RESOURCE`) | | |
 | VoiceOver | | |
@@ -120,4 +120,5 @@ Choix retenu et raison :
 
 | # | Point | Symptôme | Cause | Correctif | Test ajouté | Commit |
 |---|---|---|---|---|---|---|
-| | | | | | | |
+| 1 | Mac : fenêtre « Réglages… » | S'ouvrait derrière les autres fenêtres | Le menu de la barre des menus se ferme après le clic et macOS rend la main à l'app précédente ; app LSUIElement | Remise au premier plan immédiate puis 0,15 s plus tard (`orderFrontRegardless`) | Non (comportement d'interface) | afc3768 |
+| 2 | Clavier : mode sombre | Clavier entièrement clair alors que le système est en sombre | Le mode de l'extension ne se propageait pas à la vue SwiftUI | Mode appliqué explicitement (`environment(\.colorScheme)`) et réévalué à chaque changement de mode | Non (rendu visuel) | 3e308c0 |
