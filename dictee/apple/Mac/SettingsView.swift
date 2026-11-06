@@ -141,7 +141,12 @@ struct SettingsView: View {
 
     private var transcriptionSection: some View {
         Section {
-            TextField("Langue (code ISO)", text: $language, prompt: Text("fr"))
+            Picker("Langue de dictée", selection: $language) {
+                ForEach(DictationLanguage.choices(including: language)) { choice in
+                    Text(choice.label).tag(choice.code)
+                }
+            }
+            TextField("Autre langue (code ISO)", text: $language, prompt: Text("es"))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Vocabulaire")
                 TextEditor(text: $vocabulary)

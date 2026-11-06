@@ -152,7 +152,12 @@ struct ContentView: View {
 
     private var transcriptionSection: some View {
         Section {
-            TextField("Langue (code ISO, ex. fr)", text: $language)
+            Picker("Langue de dictée", selection: $language) {
+                ForEach(DictationLanguage.choices(including: language)) { choice in
+                    Text(choice.label).tag(choice.code)
+                }
+            }
+            TextField("Autre langue (code ISO, ex. es)", text: $language)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             VStack(alignment: .leading) {

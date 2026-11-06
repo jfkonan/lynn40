@@ -20,25 +20,9 @@ final class KeyboardModel: ObservableObject {
         let isError: Bool
     }
 
-    /// Choix de langue du panneau rapide : `fr`, `en`, ou vide = détection automatique.
-    struct LanguageChoice: Identifiable, Equatable {
-        let code: String
-        let label: String
-        var id: String { code }
-    }
-
-    static let standardLanguageChoices: [LanguageChoice] = [
-        LanguageChoice(code: "fr", label: "Français"),
-        LanguageChoice(code: "en", label: "Anglais"),
-        LanguageChoice(code: "", label: "Détection auto"),
-    ]
-
-    /// Choix affichés : les trois du cahier des charges, plus la langue réglée dans l'app si elle est autre (ex. `es`).
-    var languageChoices: [LanguageChoice] {
-        let choices = Self.standardLanguageChoices
-        guard !choices.contains(where: { $0.code == language }) else { return choices }
-        return choices + [LanguageChoice(code: language, label: language)]
-    }
+    /// Choix de langue du panneau rapide (liste commune `DictationLanguage`), plus la langue réglée dans l'app
+    /// si elle est autre (ex. `es`).
+    var languageChoices: [DictationLanguage] { DictationLanguage.choices(including: language) }
 
     /// Mode clair ou sombre poussé dans l'environnement SwiftUI, réglé par `KeyboardViewController`
     /// (champ puis système, voir `KeyboardAppearanceLogic`).

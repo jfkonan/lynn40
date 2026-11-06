@@ -116,7 +116,7 @@ le clavier puisse les réinsérer. Bouton « Effacer l'historique » dans le pan
 | Modèle Mistral | `mistralModel` | `voxtral-small-transcribe-3` (choix : `voxtral-small-transcribe-3`, `voxtral-mini-transcribe-3`, ou saisie libre) |
 | Modèle Microsoft | `microsoftModel` | `mai-transcribe-2` (saisie libre) |
 | Région Azure | `azureRegion` | `eastus` (saisie libre, ex. `westeurope`, `swedencentral`) |
-| Langue | `language` | `fr` |
+| Langue | `language` | `fr` (choix proposés partout : `fr` Français, `en` Anglais, vide = détection automatique ; autre code ISO en saisie libre) |
 | Vocabulaire | `vocabulary` | `OHADA, AUSCGIE, AUDCG, AUPCAP, AUPSRVE, CCJA, SARL, SA, SAS, SNC, GIE, RCCM, assemblée générale, conseil d'administration, commissaire aux comptes, gérant, statuts, capital social` |
 | Nettoyer le texte | `cleanupEnabled` | `false` |
 | Style d'écriture | `writingStyle` | `brut` (voir §2, « Style d'écriture ») |

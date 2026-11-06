@@ -1025,3 +1025,18 @@ final class KeyboardAppearanceLogicTests: XCTestCase {
         XCTAssertEqual(KeyboardAppearanceLogic.scheme(field: .unspecified, systemIsDark: false), .light)
     }
 }
+
+final class DictationLanguageTests: XCTestCase {
+    func testLesTroisChoixStandard() {
+        XCTAssertEqual(DictationLanguage.choices(including: "fr").map(\.code), ["fr", "en", ""])
+        XCTAssertEqual(DictationLanguage.choices(including: "").map(\.code), ["fr", "en", ""])
+    }
+
+    func testUneAutreLangueEstAjouteeEnFin() {
+        let choices = DictationLanguage.choices(including: " es ")
+        XCTAssertEqual(choices.map(\.code), ["fr", "en", "", "es"])
+        XCTAssertEqual(choices.last?.label, "es")
+        XCTAssertTrue(DictationLanguage.isCustom("es"))
+        XCTAssertFalse(DictationLanguage.isCustom("en"))
+    }
+}
