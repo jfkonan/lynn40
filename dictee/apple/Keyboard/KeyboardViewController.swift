@@ -52,6 +52,7 @@ final class KeyboardViewController: UIInputViewController {
         updateAppearance()
         model.appear()
         typing.appear()
+        prediction.warmUp()
     }
 
     override func viewDidAppear(_ animated: Bool) {

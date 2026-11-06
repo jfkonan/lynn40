@@ -394,7 +394,10 @@ final class TypingModel: ObservableObject {
             while !Task.isCancelled {
                 guard let self else { return }
                 self.controller?.playClick()
-                self.deleteOnce()
+                // Répétition : on efface, sans rétablir une correction automatique comme le ferait un ⌫ isolé.
+                self.lastSpaceTime = nil
+                self.controller?.deleteBackward()
+                self.refreshShift()
                 do {
                     try await Task.sleep(nanoseconds: TypingModel.deleteRepeatInterval)
                 } catch {

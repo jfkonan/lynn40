@@ -29,6 +29,13 @@ final class PredictionModel: ObservableObject {
         clear()
     }
 
+    /// Le dictionnaire de `UITextChecker` se charge à la première demande : on le réveille à l'apparition
+    /// pour que la première espace ne marque pas de temps d'arrêt.
+    func warmUp() {
+        guard let language = checkerLanguage else { return }
+        _ = checker.rangeOfMisspelledWord(in: "a", range: NSRange(location: 0, length: 1), startingAt: 0, wrap: false, language: language)
+    }
+
     /// À appeler après toute modification du champ ; le contexte est relu dans le bloc différé.
     func scheduleRefresh() {
         pending?.cancel()
@@ -59,8 +66,11 @@ final class PredictionModel: ObservableObject {
     /// À appeler juste avant d'insérer une espace ou une ponctuation : corrige le mot en cours s'il est inconnu.
     func autocorrectBeforeBoundary(_ boundary: String) {
         guard let controller, store.autocorrectEnabled, controller.autocorrectAllowed else { return }
-        let word = WordPrediction.partialWord(before: controller.contextBeforeInput)
-        guard AutoCorrection.isCandidate(word, protected: userTerms), let language = checkerLanguage else { return }
+        let context = controller.contextBeforeInput
+        let word = WordPrediction.partialWord(before: context)
+        let atSentenceStart = AutoCorrection.isSentenceStart(before: context, partial: word)
+        guard AutoCorrection.isCandidate(word, protected: userTerms, atSentenceStart: atSentenceStart),
+              let language = checkerLanguage else { return }
         let probe = word as NSString
         let range = NSRange(location: 0, length: probe.length)
         let misspelled = checker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0, wrap: false, language: language)

@@ -22,14 +22,26 @@ enum AutoCorrection {
     }
 
     /// Un mot est corrigible s'il est fait de lettres seulement, assez long, sans majuscule interne ni tout en
-    /// majuscules (sigles, noms composés), et absent des mots protégés (vocabulaire, historique), casse ignorée.
-    static func isCandidate(_ word: String, protected: [String]) -> Bool {
+    /// majuscules (sigles, noms composés), absent des mots protégés (vocabulaire, historique, casse ignorée), et,
+    /// s'il commence par une majuscule, seulement en début de phrase : ailleurs c'est un nom propre
+    /// (« Maître Konan », « à Cocody »), que le dictionnaire ne connaît pas.
+    static func isCandidate(_ word: String, protected: [String], atSentenceStart: Bool = true) -> Bool {
         guard word.count >= minimumLength, word.allSatisfy(\.isLetter) else { return false }
         let letters = Array(word)
         if letters.allSatisfy(\.isUppercase) { return false }
         if letters.dropFirst().contains(where: \.isUppercase) { return false }
+        if letters[0].isUppercase, !atSentenceStart { return false }
         let lower = word.lowercased()
         return !protected.contains { $0.lowercased() == lower }
+    }
+
+    /// Le mot en cours est-il en début de phrase ? `context` est le texte avant le curseur, mot en cours compris.
+    static func isSentenceStart(before context: String?, partial: String) -> Bool {
+        guard let context else { return true }
+        let beforeWord = context.dropLast(partial.count)
+        let trimmed = beforeWord.reversed().drop(while: { $0 == " " || $0 == "\u{00A0}" })
+        guard let last = trimmed.first else { return true }
+        return last == "\n" || ".!?«(\"“‘'’".contains(last)
     }
 
     /// Distance maximale acceptée entre le mot et sa correction : 1 pour un mot court, 2 à partir de 5 lettres.

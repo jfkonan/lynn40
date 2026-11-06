@@ -250,6 +250,8 @@ Note chaque point comme OK, KO ou partiel, et décris les problèmes rencontrés
    juge « inconnu » tout mot absent de son dictionnaire, noms propres compris ; la protection repose sur le vocabulaire,
    l'historique, la casse et la distance d'édition. Si des corrections intempestives remontent, ajouter les termes au
    vocabulaire ou durcir `AutoCorrection.maximumDistance`.
+   Limites connues : ⏎ ne déclenche pas la correction (seulement l'espace et `. , ; : ! ?`) ; le mot d'origine
+   n'est proposé dans la barre que si `documentContextBeforeInput` est à jour dans les 50 ms (Notes oui, certaines apps non).
 8 bis. **Barre de suggestions** (`PredictionModel`, `WordPrediction`) : `UITextChecker.completions` renvoie des
    complétions de dictionnaire, à peu près alphabétiques, pas classées par fréquence ; le vocabulaire et l'historique
    passent devant. `UITextChecker.availableLanguages` varie selon les dictionnaires installés : sans `fr_*`/`en_*`

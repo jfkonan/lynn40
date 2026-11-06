@@ -1098,6 +1098,16 @@ final class AutoCorrectionTests: XCTestCase {
         XCTAssertFalse(AutoCorrection.isCandidate("McDonald", protected: []), "majuscule interne")
         XCTAssertFalse(AutoCorrection.isCandidate("auscgie", protected: ["AUSCGIE"]), "vocabulaire, casse ignorée")
         XCTAssertFalse(AutoCorrection.isCandidate("abc1", protected: []), "chiffre")
+        XCTAssertFalse(AutoCorrection.isCandidate("Konan", protected: [], atSentenceStart: false), "nom propre en cours de phrase")
+        XCTAssertTrue(AutoCorrection.isCandidate("Tribunla", protected: [], atSentenceStart: true), "majuscule de début de phrase")
+    }
+
+    func testDebutDePhrase() {
+        XCTAssertTrue(AutoCorrection.isSentenceStart(before: "Tribunla", partial: "Tribunla"))
+        XCTAssertTrue(AutoCorrection.isSentenceStart(before: "Vu la loi. Konan", partial: "Konan"))
+        XCTAssertTrue(AutoCorrection.isSentenceStart(before: "Attendu\nKonan", partial: "Konan"))
+        XCTAssertFalse(AutoCorrection.isSentenceStart(before: "Maître Konan", partial: "Konan"))
+        XCTAssertFalse(AutoCorrection.isSentenceStart(before: "à Cocody", partial: "Cocody"))
     }
 
     func testChoixDeLaCorrection() {
