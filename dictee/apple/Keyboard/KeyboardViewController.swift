@@ -86,11 +86,16 @@ final class KeyboardViewController: UIInputViewController {
         textDocumentProxy.insertText(text)
     }
 
-    func insertDictation(_ text: String) {
+    /// Insère une dictée au curseur. Renvoie `false` si le clavier n'est pas attaché à un champ (vue hors écran) :
+    /// `insertText` serait alors perdu sans erreur.
+    @discardableResult
+    func insertDictation(_ text: String) -> Bool {
+        guard isViewLoaded, view.window != nil else { return false }
         let toInsert = TextJoiner.textToInsert(text, before: textDocumentProxy.documentContextBeforeInput)
-        guard !toInsert.isEmpty else { return }
+        guard !toInsert.isEmpty else { return true }
         textDocumentProxy.insertText(toInsert)
         typing.documentChanged()
+        return true
     }
 
     func deleteBackward() {

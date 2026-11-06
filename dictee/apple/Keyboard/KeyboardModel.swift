@@ -59,6 +59,7 @@ final class KeyboardModel: ObservableObject {
     private var tokens: [UUID] = []
     private var refreshTimer: Timer?
     private var startTimeout: DispatchWorkItem?
+    private var transcriptRetry: DispatchWorkItem?
 
     init(controller: KeyboardViewController) {
         self.controller = controller
@@ -80,8 +81,8 @@ final class KeyboardModel: ObservableObject {
         if tokens.isEmpty {
             let notifier = DarwinNotifier.shared
             tokens = [
-                notifier.observe(.stateChanged) { [weak self] in self?.refresh() },
-                notifier.observe(.transcriptReady) { [weak self] in self?.insertPendingTranscript() },
+                notifier.observe(.stateChanged) { [weak self] in self?.stateChanged() },
+                notifier.observe(.transcriptReady) { [weak self] in self?.transcriptReady() },
             ]
         }
         refreshTimer?.invalidate()
@@ -98,6 +99,8 @@ final class KeyboardModel: ObservableObject {
     func disappear() {
         refreshTimer?.invalidate()
         refreshTimer = nil
+        transcriptRetry?.cancel()
+        transcriptRetry = nil
         if phase == .recording {
             DarwinNotifier.shared.post(.cancelRecording)
         }
@@ -286,11 +289,46 @@ final class KeyboardModel: ObservableObject {
         if storedLanguage != language { language = storedLanguage }
     }
 
-    private func insertPendingTranscript() {
+    /// Signal « état changé » de l'app. Quand l'app repasse à `idle` après une transcription, le texte peut déjà être
+    /// disponible même si le signal `transcriptReady` a été manqué (clavier masqué à ce moment-là).
+    private func stateChanged() {
         refresh()
-        guard let transcript = store.unconsumedTranscript() else { return }
+        if store.state == .idle { insertPendingTranscript() }
+    }
+
+    /// Signal « transcription prête » de l'app. Les UserDefaults partagés entre processus peuvent être relus en
+    /// retard (HANDOFF, point à risque n° 4) : si rien n'est encore lisible, on réessaie brièvement.
+    private func transcriptReady() {
+        if insertPendingTranscript() { return }
+        scheduleTranscriptRetry(remaining: Self.transcriptRetryDelays)
+    }
+
+    static let transcriptRetryDelays: [TimeInterval] = [0.15, 0.5, 1.5]
+
+    private func scheduleTranscriptRetry(remaining: [TimeInterval]) {
+        guard let delay = remaining.first else { return }
+        transcriptRetry?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.transcriptRetry = nil
+            if !self.insertPendingTranscript() {
+                self.scheduleTranscriptRetry(remaining: Array(remaining.dropFirst()))
+            }
+        }
+        transcriptRetry = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    /// Insère la dernière transcription pas encore insérée. Renvoie `true` si un texte a été inséré.
+    /// Marquée consommée seulement après l'insertion : si le clavier n'est plus attaché à un champ, elle reste
+    /// disponible pour la prochaine apparition (dans la limite d'âge de `unconsumedTranscript`).
+    @discardableResult
+    private func insertPendingTranscript() -> Bool {
+        refresh()
+        guard let transcript = store.unconsumedTranscript(), let controller else { return false }
+        guard controller.insertDictation(transcript.text) else { return false }
         store.markConsumed(transcript)
-        controller?.insertDictation(transcript.text)
+        return true
     }
 
     private func ensureFullAccess() -> Bool {
