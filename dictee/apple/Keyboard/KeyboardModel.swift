@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Session de dictée et barre supérieure du clavier : suit l'état de l'app via l'App Group, pilote la dictée
 /// par signaux Darwin, et gère la pastille de style et le panneau rapide (SPEC §9).
@@ -39,6 +40,8 @@ final class KeyboardModel: ObservableObject {
         return choices + [LanguageChoice(code: language, label: language)]
     }
 
+    /// Mode d'affichage imposé à la vue SwiftUI (sombre du système ou du champ) ; `nil` = celui de l'environnement.
+    @Published var colorScheme: ColorScheme?
     @Published private(set) var phase: Phase = .needsSession
     @Published private(set) var hint: String?
     @Published private(set) var style: WritingStyle = SharedStore.Default.writingStyle

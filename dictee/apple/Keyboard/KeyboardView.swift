@@ -7,6 +7,7 @@ struct KeyboardRootView: View {
     let typing: TypingModel
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.colorScheme) private var systemScheme
 
     private var compact: Bool { verticalSizeClass == .compact }
 
@@ -36,6 +37,7 @@ struct KeyboardRootView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(KeyboardTheme.background)
+        .environment(\.colorScheme, model.colorScheme ?? systemScheme)
     }
 }
 

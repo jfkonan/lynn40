@@ -166,17 +166,25 @@ final class KeyboardViewController: UIInputViewController {
 
     // MARK: - Apparence
 
-    /// Mode sombre : celui du système, ou celui imposé par le champ (`keyboardAppearance`).
+    /// Mode sombre : celui imposé par le champ (`keyboardAppearance` sombre), sinon celui du système.
+    /// Appliqué explicitement à la vue SwiftUI : le mode de l'extension ne se propage pas toujours seul.
     private func updateAppearance() {
-        let appearance: UIKeyboardAppearance? = textDocumentProxy.keyboardAppearance
-        let style: UIUserInterfaceStyle
-        switch appearance {
-        case .some(.dark): style = .dark
-        case .some(.light): style = .light
-        default: style = .unspecified
-        }
+        let fieldIsDark = textDocumentProxy.keyboardAppearance == .dark
+        let style: UIUserInterfaceStyle = fieldIsDark ? .dark : .unspecified
         if overrideUserInterfaceStyle != style {
             overrideUserInterfaceStyle = style
+        }
+        let effective: UIUserInterfaceStyle = fieldIsDark ? .dark : traitCollection.userInterfaceStyle
+        let scheme: ColorScheme = effective == .dark ? .dark : .light
+        if model.colorScheme != scheme {
+            model.colorScheme = scheme
+        }
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle {
+            updateAppearance()
         }
     }
 }
