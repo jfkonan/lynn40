@@ -44,7 +44,9 @@ final class PredictionModel: ObservableObject {
         guard let controller else { return }
         pending?.cancel()
         pending = nil
-        for _ in 0..<partial.count { controller.deleteBackward() }
+        // Mot relu au moment du toucher : `partial` peut avoir 50 ms de retard sur la frappe.
+        let current = WordPrediction.partialWord(before: controller.contextBeforeInput)
+        for _ in 0..<current.count { controller.deleteBackward() }
         controller.insert(WordPrediction.replacement(for: suggestion))
         clear()
         controller.documentChangedByPrediction()

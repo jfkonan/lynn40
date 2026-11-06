@@ -169,6 +169,12 @@ Note chaque point comme OK, KO ou partiel, et décris les problèmes rencontrés
 - [ ] ⏎ : libellé selon le champ (« retour » dans Notes, « envoyer » dans Messages, « rechercher » dans Safari, « OK »…), bleu pour les actions ; il insère un retour à la ligne ou déclenche l'action de l'app.
 - [ ] 🌐 présent seulement s'il n'y a pas de globe système (iPhone avec bouton d'accueil) ; toucher = clavier suivant, appui long = liste des claviers.
 
+*Barre de suggestions*
+- [ ] Après 2 lettres (« tri ») : jusqu'à trois propositions ; toucher l'une d'elles remplace le mot en cours, casse conservée (« Tri » → « Tribunal »), suivie d'une espace.
+- [ ] Un terme du vocabulaire (« ohad » → « OHADA ») passe devant le dictionnaire.
+- [ ] Barre vide : clavier `123` / `#+=`, panneau ☰ ouvert, champ mot de passe, e-mail, URL ou recherche ; mode sombre lisible ; paysage : tout tient.
+- [ ] Aucune lenteur sensible à la frappe (le calcul est coalescé à 50 ms).
+
 *Accents*
 - [ ] Appui long sur e, a, c, u, i, o, y : bulle avec é è ê ë · à â æ · ç · ù û ü · î ï · ô œ · ÿ ; glisser puis relâcher insère l'accent choisi.
 - [ ] Relâcher sans glisser insère le premier accent ; glisser nettement vers le bas annule.

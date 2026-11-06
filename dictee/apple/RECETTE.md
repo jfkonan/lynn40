@@ -94,6 +94,7 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 | Rubrique | État | Détail |
 |---|---|---|
 | Frappe | OK | Points 1 à 5 de la série sans clé |
+| Barre de suggestions | non testé | Ajoutée le 2026-11-06 (496cf72), à recetter |
 | Accents par appui long | OK | |
 | Majuscules | OK | |
 | 123 et #+= | OK | |
