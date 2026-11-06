@@ -201,6 +201,14 @@ Clavier complet, inspiré de la disposition AZERTY d'iOS, avec une barre supéri
 - **bouton micro** (cercle noir, icône blanche) : même logique de session et d'enregistrement qu'avant ; rouge avec un carré pendant
   l'écoute ; un appui long pendant l'écoute annule.
 
+**Barre de suggestions** (sous la barre supérieure, au-dessus des touches ; hauteur stable, vide s'il n'y a rien) :
+- trois propositions au plus qui **complètent le mot en cours** (au moins 2 lettres tapées), séparées par de fins traits ;
+  un toucher remplace le mot en cours par la proposition suivie d'une espace, en gardant sa casse (« Tri » → « Tribunal ») ;
+- sources, dans l'ordre : le **vocabulaire** et les mots des **dernières transcriptions** (sigles, noms propres), puis le
+  dictionnaire du système (`UITextChecker`) dans la **langue de dictée** (`fr`, `en` ; vide = langue du clavier) ;
+- rien de proposé : champ mot de passe, nombre, adresse e-mail, URL ou recherche, champ refusant la correction,
+  claviers `123` / `#+=`, panneau rapide ouvert. Ce n'est pas une prédiction du mot suivant : sans texte en cours, la barre est vide.
+
 **Touches** :
 - Lettres : `A Z E R T Y U I O P` / `Q S D F G H J K L M` / `⇧ W X C V B N ' ⌫` / `123 🌐 espace ⏎`
   (🌐 seulement si `needsInputModeSwitchKey`). La barre d'espace affiche « Dictée ».

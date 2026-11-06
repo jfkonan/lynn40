@@ -9,12 +9,13 @@ final class KeyboardInputView: UIInputView, UIInputViewAudioFeedback {
 
 /// Point d'entrée de l'extension clavier (déclaré dans NSExtensionPrincipalClass).
 final class KeyboardViewController: UIInputViewController {
-    /// Hauteur du clavier (barre supérieure + 4 rangées), portrait et paysage.
-    static let regularHeight: CGFloat = 290
-    static let compactHeight: CGFloat = 220
+    /// Hauteur du clavier (barre supérieure + barre de suggestions + 4 rangées), portrait et paysage.
+    static let regularHeight: CGFloat = 328
+    static let compactHeight: CGFloat = 252
 
     private lazy var model = KeyboardModel(controller: self)
     private lazy var typing = TypingModel(controller: self)
+    private lazy var prediction = PredictionModel(controller: self)
     private var hostingController: UIHostingController<KeyboardRootView>?
     private var heightConstraint: NSLayoutConstraint?
 
@@ -25,7 +26,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        let host = UIHostingController(rootView: KeyboardRootView(model: model, typing: typing))
+        let host = UIHostingController(rootView: KeyboardRootView(model: model, typing: typing, prediction: prediction))
         host.view.backgroundColor = .clear
         host.view.translatesAutoresizingMaskIntoConstraints = false
         addChild(host)
@@ -63,6 +64,7 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillDisappear(animated)
         model.disappear()
         typing.disappear()
+        prediction.disappear()
     }
 
     override func viewWillLayoutSubviews() {
@@ -78,12 +80,40 @@ final class KeyboardViewController: UIInputViewController {
         super.textDidChange(textInput)
         updateAppearance()
         typing.documentChanged()
+        prediction.scheduleRefresh()
     }
 
     // MARK: - Actions appelées par les modèles
 
     func insert(_ text: String) {
         textDocumentProxy.insertText(text)
+        prediction.scheduleRefresh()
+    }
+
+    /// Une proposition a été insérée : majuscule automatique et traits réévalués comme après une frappe.
+    func documentChangedByPrediction() {
+        typing.documentChanged()
+    }
+
+    /// Clavier 123 / #+= ou panneau rapide : les conditions d'affichage des suggestions ont changé.
+    func refreshPredictions() {
+        prediction.scheduleRefresh()
+    }
+
+    /// Suggestions utiles seulement pour du texte courant en lettres : pas de mot de passe, de nombre, d'adresse
+    /// ou d'URL, ni quand le champ refuse la correction, ni sur les claviers 123 / #+= ou le panneau rapide.
+    var predictionsAllowed: Bool {
+        let proxy = textDocumentProxy
+        if proxy.isSecureTextEntry == true { return false }
+        if proxy.autocorrectionType == .no { return false }
+        switch proxy.keyboardType {
+        case .some(.numberPad), .some(.phonePad), .some(.decimalPad), .some(.numbersAndPunctuation),
+             .some(.emailAddress), .some(.URL), .some(.webSearch), .some(.asciiCapableNumberPad):
+            return false
+        default:
+            break
+        }
+        return typing.layer == .letters && !model.panelOpen
     }
 
     /// Insère une dictée au curseur. Renvoie `false` si le clavier n'est pas attaché à un champ (vue hors écran) :
@@ -95,11 +125,13 @@ final class KeyboardViewController: UIInputViewController {
         guard !toInsert.isEmpty else { return true }
         textDocumentProxy.insertText(toInsert)
         typing.documentChanged()
+        prediction.scheduleRefresh()
         return true
     }
 
     func deleteBackward() {
         textDocumentProxy.deleteBackward()
+        prediction.scheduleRefresh()
     }
 
     func playClick() {

@@ -1040,3 +1040,45 @@ final class DictationLanguageTests: XCTestCase {
         XCTAssertFalse(DictationLanguage.isCustom("en"))
     }
 }
+
+final class WordPredictionTests: XCTestCase {
+    func testMotEnCoursApresEspaceEtApostrophe() {
+        XCTAssertEqual(WordPrediction.partialWord(before: "Vu l'aud"), "aud")
+        XCTAssertEqual(WordPrediction.partialWord(before: "Bonjour "), "")
+        XCTAssertEqual(WordPrediction.partialWord(before: "état-ci"), "état-ci")
+        XCTAssertEqual(WordPrediction.partialWord(before: nil), "")
+    }
+
+    func testClassementVocabulairePuisDictionnaireSansDoublon() {
+        let ranked = WordPrediction.rank(
+            partial: "au",
+            userTerms: ["AUSCGIE", "audience", "AUDCG"],
+            dictionary: ["au", "aube", "audience", "aucun"]
+        )
+        XCTAssertEqual(ranked, ["AUSCGIE", "audience", "AUDCG"])
+    }
+
+    func testUneLettreNeProposeRien() {
+        XCTAssertEqual(WordPrediction.rank(partial: "a", userTerms: ["avocat"], dictionary: ["avocat"]), [])
+    }
+
+    func testCasseDuMotConservee() {
+        XCTAssertEqual(WordPrediction.matchCase(of: "Tri", in: "tribunal"), "Tribunal")
+        XCTAssertEqual(WordPrediction.matchCase(of: "TRI", in: "tribunal"), "TRIBUNAL")
+        XCTAssertEqual(WordPrediction.matchCase(of: "tri", in: "tribunal"), "tribunal")
+        XCTAssertEqual(WordPrediction.matchCase(of: "au", in: "AUSCGIE"), "AUSCGIE")
+    }
+
+    func testLangueDuVerificateur() {
+        let available = ["en_US", "en_GB", "fr_FR", "es_ES"]
+        XCTAssertEqual(WordPrediction.checkerLanguage(dictation: "fr", available: available, fallback: nil), "fr_FR")
+        XCTAssertEqual(WordPrediction.checkerLanguage(dictation: "en", available: available, fallback: nil), "en_US")
+        XCTAssertEqual(WordPrediction.checkerLanguage(dictation: "", available: available, fallback: "fr-FR"), "fr_FR")
+        XCTAssertNil(WordPrediction.checkerLanguage(dictation: "", available: available, fallback: nil))
+        XCTAssertNil(WordPrediction.checkerLanguage(dictation: "zz", available: available, fallback: nil))
+    }
+
+    func testMotsDunTexte() {
+        XCTAssertEqual(WordPrediction.words(in: "OHADA, AUSCGIE ; assemblée générale."), ["OHADA", "AUSCGIE", "assemblée", "générale"])
+    }
+}

@@ -5,6 +5,8 @@ struct KeyboardRootView: View {
     @ObservedObject var model: KeyboardModel
     /// Observé seulement par `KeysView` : une frappe ne redessine pas la barre supérieure.
     let typing: TypingModel
+    /// Observé seulement par `PredictionBar`.
+    let prediction: PredictionModel
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
@@ -14,6 +16,10 @@ struct KeyboardRootView: View {
         VStack(spacing: 0) {
             TopBar(model: model, compact: compact)
                 .frame(height: compact ? 40 : 52)
+
+            // Toujours présente (hauteur stable, comme sur iOS) ; vide quand il n'y a rien à proposer.
+            PredictionBar(prediction: prediction, compact: compact)
+                .frame(height: compact ? 32 : 38)
 
             ZStack(alignment: .topTrailing) {
                 if model.panelOpen {
@@ -38,6 +44,43 @@ struct KeyboardRootView: View {
         .background(KeyboardTheme.background)
         // Mode clair/sombre décidé par le contrôleur (champ puis système) : voir `KeyboardAppearanceLogic`.
         .environment(\.colorScheme, model.colorScheme)
+    }
+}
+
+// MARK: - Barre de suggestions
+
+/// Trois propositions séparées par de fins traits, comme la barre prédictive d'iOS (SPEC §9).
+private struct PredictionBar: View {
+    @ObservedObject var prediction: PredictionModel
+    let compact: Bool
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(prediction.suggestions.enumerated()), id: \.offset) { index, suggestion in
+                if index > 0 {
+                    Rectangle()
+                        .fill(KeyboardTheme.secondaryText.opacity(0.35))
+                        .frame(width: 1)
+                        .padding(.vertical, 6)
+                }
+                Button {
+                    prediction.accept(suggestion)
+                } label: {
+                    Text(suggestion)
+                        .font(.system(size: compact ? 15 : 17))
+                        .foregroundColor(KeyboardTheme.keyText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Suggestion : \(suggestion)")
+                .accessibilityHint("Remplace le mot en cours.")
+            }
+        }
+        .padding(.horizontal, 4)
+        .accessibilityElement(children: .contain)
     }
 }
 

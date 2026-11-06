@@ -177,11 +177,14 @@ final class KeyboardModel: ObservableObject {
             loadSettings()
             history = store.history
             panelOpen = true
+            controller?.refreshPredictions()
         }
     }
 
     func closePanel() {
-        if panelOpen { panelOpen = false }
+        guard panelOpen else { return }
+        panelOpen = false
+        controller?.refreshPredictions()
     }
 
     /// Réglages écrits dans l'App Group (mêmes clés que l'app), pris en compte à la dictée suivante.

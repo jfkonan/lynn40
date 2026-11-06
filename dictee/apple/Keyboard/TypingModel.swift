@@ -311,6 +311,7 @@ final class TypingModel: ObservableObject {
         cancelAllTouches()
         if layer != target { layer = target }
         if target == .letters { refreshShift() }
+        controller?.refreshPredictions()
     }
 
     /// Tape tout de suite les lettres encore enfoncées (frappe à deux doigts).
