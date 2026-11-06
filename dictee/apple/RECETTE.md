@@ -10,7 +10,7 @@ et le détail des points KO ou partiels (symptôme, cause probable, correctif, c
 | Compilation et tests | 2026-11-06 | Mac | Faite, tout passe |
 | App Mac | 2026-11-06 | Mac | Faite sauf dictée réelle (pas de clé) |
 | iPhone et clavier | 2026-11-06 | iPhone réel | Frappe et ouverture de l'app OK ; dictée non testée (pas de clé) |
-| Banc d'essai des moteurs | à faire | Mac, avec les clés de l'utilisateur | Bloqué : aucune clé API disponible |
+| Banc d'essai des moteurs | à faire | Mac, avec les clés de l'utilisateur | Bloqué : aucune clé API disponible. Les noms de modèles (§0) restent à trancher |
 
 ---
 
@@ -80,13 +80,13 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 
 | Rubrique | État | Détail |
 |---|---|---|
-| App seule (micro, clés, réglages) | | |
+| App seule (micro, clés, réglages) | partiel | Micro et lancement OK ; clés et essai de transcription non testés (pas de clé) |
 | Activation du clavier et accès complet | OK | |
 | Ouverture de l'app depuis le clavier (**point à risque n° 1**) | OK | Ouverture et retour dans Notes corrects |
-| Dictée dans Notes | | |
-| Dictée dans Mail | | |
-| Dictée dans Safari | | |
-| Robustesse (arrière-plan, appel, écouteurs, app tuée, dictée longue, musique) | | |
+| Dictée dans Notes | non testé | Demande une clé API |
+| Dictée dans Mail | non testé | Demande une clé API |
+| Dictée dans Safari | non testé | Demande une clé API |
+| Robustesse (arrière-plan, appel, écouteurs, app tuée, dictée longue, musique) | partiel | Session en arrière-plan et point orange OK ; reste non testé (demande une dictée réelle, donc une clé) |
 
 ## 5. Clavier AZERTY
 
@@ -96,13 +96,13 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 | Accents par appui long | OK | |
 | Majuscules | OK | |
 | 123 et #+= | OK | |
-| Dictée et pastille | | |
-| Styles d'écriture | | |
+| Dictée et pastille | partiel | Menu des 4 styles et message d'erreur sans clé OK ; dictée réelle non testée |
+| Styles d'écriture | non testé | Demande une clé OpenAI |
 | Panneau rapide ☰ | OK (ouverture et fermeture) | Historique, fournisseur, langue non testés |
 | Mode sombre | OK après correctif | Clavier resté clair en mode sombre ; corrigé, voir §7 |
-| Tailles d'écran et paysage | | |
-| Mémoire (< ~40 Mo, aucun `EXC_RESOURCE`) | | |
-| VoiceOver | | |
+| Tailles d'écran et paysage | partiel | Paysage OK sur iPhone 18 Pro ; iPhone SE et Pro Max non testés (un seul appareil) |
+| Mémoire (< ~40 Mo, aucun `EXC_RESOURCE`) | non testé | Demande le Debug Navigator de Xcode |
+| VoiceOver | OK | |
 
 ## 6. Banc d'essai des moteurs
 
