@@ -96,6 +96,7 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 | Frappe | OK | Points 1 à 5 de la série sans clé |
 | Barre de suggestions | OK | Ajoutée le 2026-11-06 (496cf72, c894db4) ; validée sur iPhone 18 Pro |
 | Correction automatique | OK | Ajoutée le 2026-11-06 (4531704, 1519bb7) ; validée sur iPhone 18 Pro |
+| Espace intelligente avant la ponctuation | OK | Ajoutée le 2026-11-06 (c59de3b) ; validée sur iPhone 18 Pro |
 | Accents par appui long | OK | |
 | Majuscules | OK | |
 | 123 et #+= | OK | |
