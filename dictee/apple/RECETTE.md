@@ -76,7 +76,7 @@ Si l'un des noms est refusé (400 ou 404 qui cite le modèle), corriger dans cet
 | Autorisations Micro et Accessibilité ; 🌐 réglé sur « Ne rien faire » | OK | |
 | Raccourcis (Fn maintenu, ⌥Espace) | partiel | ⌥Espace OK ; Fn KO sur ce Mac, voir §7 |
 | Insertion (presse-papiers + ⌘V, restauration) | OK (dictée dans Notes avec ⌥Espace) | Restauration du presse-papiers non vérifiée |
-| Transcription en continu (OpenAI) | OK | 2026-11-07, dictée de 10 s : session prête +1,4 s après l'appui, 47 deltas, texte final 0,85 s après le relâchement ; nettoyage `gpt-4o-mini` +2,0 s (style Formel) → 2,85 s au total ; **style Brut, relecture coupée : 0,82 s au total** (32 deltas, dernier +0,6 s, final +0,8 s). Journal : `~/Library/Logs/Dictee/dictee.log` |
+| Transcription en continu (OpenAI) | OK | 2026-11-07, dictée de 10 s : session prête +1,4 s après l'appui, 47 deltas, texte final 0,85 s après le relâchement ; nettoyage `gpt-4o-mini` +2,0 s (style Formel) → 2,85 s au total ; **style Brut, relecture coupée : 0,82 s au total** (32 deltas, dernier +0,6 s, final +0,8 s). Avec `delay: low` et session pré-ouverte : 0,72 s (10 s) et 0,74 s (2 s, auparavant +1,5 s d'attente de session) ; `minimal` : 0,80 s, non retenu. Journal : `~/Library/Logs/Dictee/dictee.log` |
 | Latence | OK après réglage | Jugée lente avec « Nettoyer le texte » activé (second appel OpenAI, `gpt-4o-mini`) ; nettement plus rapide une fois désactivé. Modèle `gpt-transcribe` conservé |
 | Pastille, sons, Échap | non testé | À tester avec ⌥Espace |
 | Réglages, fournisseurs, styles | partiel | Fenêtre « Réglages… » KO au départ (derrière les autres), corrigée ; voir §7 |

@@ -16,6 +16,10 @@ enum RealtimeProtocol {
         case ignored
     }
 
+    /// Réactivité demandée à `gpt-live-transcribe` (`minimal`, `low`, `medium`, `high`, `xhigh`) : plus bas = texte plus tôt,
+    /// moins de contexte. Mesuré en recette (SPEC §2 ter) ; `low` garde une marge de précision sur `minimal`.
+    static let openAIDelay = "low"
+
     /// Le fournisseur a-t-il un protocole implémenté ?
     static func supports(_ provider: TranscriptionProvider) -> Bool {
         switch provider {
@@ -60,7 +64,7 @@ enum RealtimeProtocol {
         var session: [String: Any]
         switch provider {
         case .openai:
-            var transcription: [String: Any] = ["model": settings.openAIRealtimeModel]
+            var transcription: [String: Any] = ["model": settings.openAIRealtimeModel, "delay": openAIDelay]
             if !language.isEmpty { transcription["languages"] = [language] }
             let keywords = terms.filter { !$0.contains("<") && !$0.contains(">") && !$0.contains("\n") && !$0.contains("\r") }
             if !keywords.isEmpty { transcription["keywords"] = keywords }

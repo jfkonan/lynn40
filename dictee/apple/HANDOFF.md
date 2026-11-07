@@ -242,9 +242,11 @@ Validé en recette le 2026-11-07 avec OpenAI `gpt-live-transcribe` sur Mac : tex
 fournisseur, réglages, durée relâchement → texte, repères du continu (`RealtimeTranscriber.Timing` : session prête, deltas,
 final) et chronométrage des étapes (clés, texte brut, nettoyage). Jamais le texte dicté ni une clé. Première mesure
 (2026-11-07, dictée de 10 s, style « Formel ») : session prête 1,4 s après l'appui, 47 deltas, texte final **0,85 s** après le
-relâchement, puis **2,0 s de nettoyage** `gpt-4o-mini` (total 2,85 s). Même dictée en style « Brut », relecture coupée : **0,82 s** au total. Pistes
-non explorées : paramètre `delay` d'OpenAI (`low`/`minimal`, placement à vérifier dans le guide) et pré-ouverture de la
-connexion (la session met 1,4 à 1,5 s à être prête : pénalisant pour une phrase courte). Le nettoyage est donc le poste principal ; rappel : un
+relâchement, puis **2,0 s de nettoyage** `gpt-4o-mini` (total 2,85 s). Même dictée en style « Brut », relecture coupée : **0,82 s** au total. Optimisations
+du 2026-11-07 : `delay: "low"` (`RealtimeProtocol.openAIDelay`, sous `session.audio.input.transcription`) et **session
+pré-ouverte** (`StreamingSupport.prepare`, au lancement Mac / au démarrage de session iOS, renouvelée après chaque dictée,
+fermée par `discardWarm`). Mesures : 10 s de dictée → 0,72 s ; 2 s de dictée → 0,74 s (session déjà prête). Le plancher est le
+texte final rendu par le serveur ~0,7 s après le relâchement ; `minimal` n'a rien gagné (0,80 s), `low` est conservé. Le nettoyage est donc le poste principal ; rappel : un
 style autre que « Brut » le déclenche même si « Nettoyer le texte » est désactivé (SPEC §2).
 Points à surveiller : noms de champs OpenAI (`languages`, `keywords`) et Mistral (`context_bias`, `target_streaming_delay_ms`)
 si un fournisseur change son protocole ; coût (0,017 $/min OpenAI) ; Microsoft reste au fichier (déploiement Foundry à prévoir).

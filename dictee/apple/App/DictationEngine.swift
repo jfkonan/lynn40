@@ -128,6 +128,8 @@ final class DictationEngine: ObservableObject {
         }
         heartbeat()
         DarwinNotifier.shared.post(.stateChanged)
+        // Session de transcription en continu pré-ouverte : prête avant le premier micro (SPEC §2 ter).
+        StreamingSupport.prepare(store: store)
     }
 
     func endSession(reason: String? = nil) {
@@ -142,6 +144,7 @@ final class DictationEngine: ObservableObject {
         launchedFromKeyboard = false
         inputLevel = 0
         store.sessionExpiresAt = nil
+        StreamingSupport.discardWarm()
         if state != .transcribing {
             publish(reason == nil ? .idle : .error, error: reason)
         } else {
@@ -268,6 +271,7 @@ final class DictationEngine: ObservableObject {
             if let releasedAt { lastLatency = Date().timeIntervalSince(releasedAt) }
             publish(.idle, error: nil)
             DarwinNotifier.shared.post(.transcriptReady)
+            if sessionActive { StreamingSupport.prepare(store: store) }
         } catch is CancellationError {
             publish(.idle, error: nil)
         } catch let error as URLError where error.code == .cancelled {

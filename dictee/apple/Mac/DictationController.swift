@@ -50,6 +50,8 @@ final class DictationController: ObservableObject {
     // MARK: - Démarrage
 
     func start() {
+        // Session de transcription en continu pré-ouverte : prête avant le premier appui (SPEC §2 ter).
+        StreamingSupport.prepare(store: store)
         guard !started else { return }
         started = true
         Self.purgeLeftoverAudio()
@@ -342,6 +344,7 @@ final class DictationController: ObservableObject {
         let insertion = TextJoiner.textToInsert(text, before: nil)
         let outcome = await inserter.insert(insertion, restoreClipboard: settings.restoreClipboard)
         setState(.idle, error: nil)
+        StreamingSupport.prepare(store: store)
         switch outcome {
         case .pasted:
             overlay.hide()
@@ -359,6 +362,7 @@ final class DictationController: ObservableObject {
             capture.cancel()
         }
         transcriptionTask?.cancel()
+        StreamingSupport.discardWarm()
         Self.purgeLeftoverAudio()
     }
 

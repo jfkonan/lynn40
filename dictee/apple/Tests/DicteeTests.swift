@@ -1174,6 +1174,7 @@ final class RealtimeProtocolTests: XCTestCase {
         XCTAssertTrue(input["turn_detection"] is NSNull)
         let transcription = try XCTUnwrap(input["transcription"] as? [String: Any])
         XCTAssertEqual(transcription["model"] as? String, "gpt-live-transcribe")
+        XCTAssertEqual(transcription["delay"] as? String, RealtimeProtocol.openAIDelay)
         XCTAssertEqual(transcription["languages"] as? [String], ["fr"])
         XCTAssertEqual(transcription["keywords"] as? [String], ["OHADA", "AUSCGIE"], "terme avec < > écarté")
     }

@@ -60,7 +60,15 @@ final class RealtimeTranscriber: @unchecked Sendable {
                 return String(format: "%@%.1f s", value >= 0 ? "+" : "−", abs(value))
             }
             let origin = endSent ?? started
-            let readyText = ready.map { String(format: "prêt +%.1f s après l'appui", $0.timeIntervalSince(started)) } ?? "jamais prêt"
+            let readyText: String
+            if let ready {
+                let lead = ready.timeIntervalSince(started)
+                readyText = lead <= 0.05
+                    ? "session prête avant l'appui"
+                    : String(format: "prêt +%.1f s après l'appui", lead)
+            } else {
+                readyText = "jamais prêt"
+            }
             return "\(readyText) · \(deltaCount) deltas, dernier \(rel(lastDelta, origin)) · final \(rel(completed, origin))"
         }
     }
@@ -69,6 +77,21 @@ final class RealtimeTranscriber: @unchecked Sendable {
     /// Lecture après `finish()` (ou à tout moment, instantané).
     var timingSummary: String {
         queue.sync { timing.summary }
+    }
+
+    /// Session encore utilisable : connectée et sans erreur (une session pré-ouverte peut avoir été fermée par le serveur).
+    var isAlive: Bool {
+        queue.sync { failed == nil && task != nil && completion == nil && completed == nil }
+    }
+
+    /// Réglages avec lesquels la session a été ouverte, pour réutiliser une session pré-ouverte seulement si rien n'a changé.
+    var configuration: (provider: TranscriptionProvider, settings: TranscriptionSettings, apiKey: String) {
+        (provider, settings, apiKey)
+    }
+
+    /// Session pré-ouverte : l'appui a lieu maintenant, le repère « prêt +x s après l'appui » part d'ici.
+    func markPressed() {
+        queue.async { [self] in timing.started = Date() }
     }
 
     init(provider: TranscriptionProvider, settings: TranscriptionSettings, apiKey: String, session: URLSession = .shared) {
