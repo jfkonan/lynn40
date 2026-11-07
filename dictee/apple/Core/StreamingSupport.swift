@@ -26,7 +26,7 @@ enum StreamingSupport {
 
     struct Result {
         let text: String
-        /// `nil` si le texte vient de la session en continu ; sinon la raison du repli fichier (diagnostic).
+        /// Diagnostic affiché sous la dernière transcription : repères de temps du continu, ou raison du repli fichier.
         let fallbackReason: String?
     }
 
@@ -45,12 +45,13 @@ enum StreamingSupport {
         if let streamer {
             do {
                 let text = try await streamer.finish().trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty { return Result(text: text, fallbackReason: nil) }
-                reason = "texte vide en continu"
+                if !text.isEmpty { return Result(text: text, fallbackReason: "continu : " + streamer.timingSummary) }
+                reason = "texte vide en continu (" + streamer.timingSummary + ")"
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
-                reason = TranscriptionService.redactKeys(error.localizedDescription, apiKey: keys.key(for: provider))
+                reason = "repli fichier : " + TranscriptionService.redactKeys(error.localizedDescription, apiKey: keys.key(for: provider))
+                    + " (" + streamer.timingSummary + ")"
             }
             try Task.checkCancellation()
         }

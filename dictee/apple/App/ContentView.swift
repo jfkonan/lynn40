@@ -107,7 +107,7 @@ struct ContentView: View {
             if !engine.lastTranscript.isEmpty {
                 if let latency = engine.lastLatency {
                     Text(String(format: "Texte prêt %.1f s après le relâchement", locale: Locale(identifier: "fr_FR"), latency)
-                         + (engine.lastStreamingNote.map { " · repli fichier : \($0)" } ?? " · en continu"))
+                         + (engine.lastStreamingNote.map { " · \($0)" } ?? ""))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

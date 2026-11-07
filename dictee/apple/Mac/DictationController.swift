@@ -285,14 +285,19 @@ final class DictationController: ObservableObject {
 
         // Réglages et clés lus une fois, avant l'appel réseau. Clé du fournisseur absente :
         // TranscriptionError.missingAPIKey (« Clé API Mistral manquante… »), affichée par le `catch` générique.
+        let origin = releasedAt ?? Date()
+        func mark(_ label: String) -> String { String(format: "%@ +%.2f s", label, Date().timeIntervalSince(origin)) }
+        var steps: [String] = [mark("tâche")]
         let provider = store.provider
         let settings = store.transcriptionSettings
         let keys = KeychainStore.loadAllKeys()
+        steps.append(mark("clés"))
 
         do {
             let result = try await StreamingSupport.rawText(
                 streamer: streamer, provider: provider, audioURL: fileURL, settings: settings, keys: keys
             )
+            steps.append(mark("texte brut"))
             let raw = result.text
             lastStreamingNote = result.fallbackReason
 
@@ -309,9 +314,16 @@ final class DictationController: ObservableObject {
             try Task.checkCancellation()
 
             // Texte final vide : RuleError.noSpeech (« Aucune parole détectée. »), affichée par le `catch` générique.
+            steps.append(mark("nettoyage"))
             let text = try TranscriptionRules.finalText(raw: raw, cleaned: cleaned)
             lastTranscript = text
             if let releasedAt { lastLatency = Date().timeIntervalSince(releasedAt) }
+            lastStreamingNote = (lastStreamingNote ?? "") + " · étapes : " + steps.joined(separator: ", ")
+            DiagnosticLog.append(String(
+                format: "fournisseur=%@ continu=%@ relecture=%@ style=%@ latence=%.2f s · %@",
+                provider.rawValue, store.streamingEnabled ? "oui" : "non", store.cleanupEnabled ? "oui" : "non",
+                store.writingStyle.rawValue, lastLatency ?? -1, lastStreamingNote ?? ""
+            ))
             await deliver(text)
         } catch is CancellationError {
             setState(.idle, error: nil)
@@ -320,6 +332,7 @@ final class DictationController: ObservableObject {
             setState(.idle, error: nil)
             overlay.hide()
         } catch {
+            DiagnosticLog.append("échec : " + TranscriptionService.redactKeys(error.localizedDescription, apiKey: keys.key(for: provider)) + " · étapes : " + steps.joined(separator: ", "))
             fail(error.localizedDescription)
         }
     }

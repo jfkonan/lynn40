@@ -16,7 +16,7 @@ struct MenuContent: View {
             Menu(controller.lastLatency.map { "Dernière transcription · \(Self.latencyLabel($0))" } ?? "Dernière transcription") {
                 Text(Self.preview(of: controller.lastTranscript))
                 if let note = controller.lastStreamingNote {
-                    Text("Repli fichier : \(Self.preview(of: note))")
+                    Text(Self.preview(of: note, limit: 400))
                 }
                 Divider()
                 Button("Copier") { controller.copyLastTranscript() }

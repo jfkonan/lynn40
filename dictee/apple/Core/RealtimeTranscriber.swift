@@ -42,6 +42,35 @@ final class RealtimeTranscriber: @unchecked Sendable {
     private var completion: CheckedContinuation<String, Error>?
     private var timeoutWork: DispatchWorkItem?
 
+    /// Repères de temps (diagnostic, SPEC §2 ter « mesure ») : où passent les millisecondes.
+    struct Timing {
+        var started = Date()
+        var ready: Date?
+        var firstDelta: Date?
+        var lastDelta: Date?
+        var endSent: Date?
+        var completed: Date?
+        var deltaCount = 0
+
+        /// Résumé lisible, durées relatives à l'envoi de la fin (relâchement) : « prêt +0,4 s · 12 deltas, dernier −0,3 s · final +2,1 s ».
+        var summary: String {
+            func rel(_ date: Date?, _ origin: Date) -> String {
+                guard let date else { return "—" }
+                let value = date.timeIntervalSince(origin)
+                return String(format: "%@%.1f s", value >= 0 ? "+" : "−", abs(value))
+            }
+            let origin = endSent ?? started
+            let readyText = ready.map { String(format: "prêt +%.1f s après l'appui", $0.timeIntervalSince(started)) } ?? "jamais prêt"
+            return "\(readyText) · \(deltaCount) deltas, dernier \(rel(lastDelta, origin)) · final \(rel(completed, origin))"
+        }
+    }
+
+    private var timing = Timing()
+    /// Lecture après `finish()` (ou à tout moment, instantané).
+    var timingSummary: String {
+        queue.sync { timing.summary }
+    }
+
     init(provider: TranscriptionProvider, settings: TranscriptionSettings, apiKey: String, session: URLSession = .shared) {
         self.provider = provider
         self.settings = settings
@@ -96,6 +125,7 @@ final class RealtimeTranscriber: @unchecked Sendable {
                     return
                 }
                 completion = continuation
+                timing.endSent = Date()
                 if ready {
                     sendLocked(RealtimeProtocol.end(for: provider))
                 } else {
@@ -158,6 +188,7 @@ final class RealtimeTranscriber: @unchecked Sendable {
             switch event {
             case .ready:
                 ready = true
+                timing.ready = Date()
                 for chunk in buffered {
                     // Un morceau vide marque la demande de fin arrivée avant que la session soit prête.
                     sendLocked(chunk.isEmpty ? RealtimeProtocol.end(for: provider) : RealtimeProtocol.append(for: provider, pcm: chunk))
@@ -165,8 +196,12 @@ final class RealtimeTranscriber: @unchecked Sendable {
                 buffered = []
             case let .delta(text):
                 deltas.append(text)
+                timing.deltaCount += 1
+                if timing.firstDelta == nil { timing.firstDelta = Date() }
+                timing.lastDelta = Date()
             case let .completed(text):
                 completed = text
+                timing.completed = Date()
                 timeoutWork?.cancel()
                 if let completion {
                     self.completion = nil

@@ -238,6 +238,12 @@ texte final attendu 10 s au plus), `Core/StreamingSupport.swift` (décision, rep
 16 kHz Mistral) en plus du WAV. Les moteurs (`DictationEngine`, `DictationController`) ouvrent la session à l'appui et
 affichent la durée relâchement → texte (`lastLatency`) et la raison d'un éventuel repli (`lastStreamingNote`).
 Validé en recette le 2026-11-07 avec OpenAI `gpt-live-transcribe` sur Mac : texte en continu, sans repli.
+**Mesure** : sur Mac, chaque dictée ajoute une ligne à `~/Library/Logs/Dictee/dictee.log` (`Mac/DiagnosticLog.swift`) :
+fournisseur, réglages, durée relâchement → texte, repères du continu (`RealtimeTranscriber.Timing` : session prête, deltas,
+final) et chronométrage des étapes (clés, texte brut, nettoyage). Jamais le texte dicté ni une clé. Première mesure
+(2026-11-07, dictée de 10 s, style « Formel ») : session prête 1,4 s après l'appui, 47 deltas, texte final **0,85 s** après le
+relâchement, puis **2,0 s de nettoyage** `gpt-4o-mini` (total 2,85 s). Le nettoyage est donc le poste principal ; rappel : un
+style autre que « Brut » le déclenche même si « Nettoyer le texte » est désactivé (SPEC §2).
 Points à surveiller : noms de champs OpenAI (`languages`, `keywords`) et Mistral (`context_bias`, `target_streaming_delay_ms`)
 si un fournisseur change son protocole ; coût (0,017 $/min OpenAI) ; Microsoft reste au fichier (déploiement Foundry à prévoir).
 
