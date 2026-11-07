@@ -39,7 +39,9 @@ enum StreamingSupport {
         settings: TranscriptionSettings,
         keys: ProviderKeys
     ) async throws -> Result {
-        var reason: String? = streamer == nil ? "continu inactif" : nil
+        // Pas de session : réglage désactivé, fournisseur sans protocole ou clé absente. Ce n'est pas un repli,
+        // donc pas de raison affichée.
+        var reason: String?
         if let streamer {
             do {
                 let text = try await streamer.finish().trimmingCharacters(in: .whitespacesAndNewlines)

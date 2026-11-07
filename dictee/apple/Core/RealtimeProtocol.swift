@@ -54,7 +54,8 @@ enum RealtimeProtocol {
 
     /// Message de configuration de la session, à envoyer après `session.created`.
     static func sessionUpdate(for provider: TranscriptionProvider, settings: TranscriptionSettings) -> Data {
-        let language = settings.language.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Code à 2 lettres (« fr-FR » → « fr »), comme pour Mistral en fichier (SPEC §2 bis) ; vide = détection.
+        let language = TranscriptionService.mistralLanguage(for: settings.language) ?? ""
         let terms = TranscriptionService.vocabularyTerms(settings.vocabulary)
         var session: [String: Any]
         switch provider {

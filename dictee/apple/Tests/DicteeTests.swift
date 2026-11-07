@@ -1188,6 +1188,16 @@ final class RealtimeProtocolTests: XCTestCase {
         XCTAssertEqual(session["context_bias"] as? [String], ["OHADA", "AUSCGIE", "mauvais<terme>"])
     }
 
+    func testLangueNormaliseeADeuxLettres() throws {
+        let regional = TranscriptionSettings(language: "fr-FR", vocabulary: "")
+        let openai = object(RealtimeProtocol.sessionUpdate(for: .openai, settings: regional))
+        let transcription = ((openai["session"] as? [String: Any])?["audio"] as? [String: Any])
+            .flatMap { ($0["input"] as? [String: Any])?["transcription"] as? [String: Any] }
+        XCTAssertEqual(transcription?["languages"] as? [String], ["fr"])
+        let mistral = object(RealtimeProtocol.sessionUpdate(for: .mistral, settings: regional))
+        XCTAssertEqual((mistral["session"] as? [String: Any])?["language"] as? String, "fr")
+    }
+
     func testLangueVideOmise() {
         let empty = TranscriptionSettings(language: "", vocabulary: "")
         let openai = object(RealtimeProtocol.sessionUpdate(for: .openai, settings: empty))

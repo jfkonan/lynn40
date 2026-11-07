@@ -31,6 +31,10 @@ de la session. Seuls les extraits du moteur de recherche ont été lus. **Le ban
 | Modèle Microsoft | `mai-transcribe-2` | La documentation Microsoft écrit **`MAI-Transcribe-2`** (majuscules). Une version plus ancienne de la page montre `mai-transcribe-1.5`. MAI-Transcribe-1 est retiré depuis le 20 août 2026. Le service est en préversion. | **Casse à vérifier** au banc |
 | Format Azure | `transcriptions:transcribe?api-version=2025-10-15`, parties `audio` + `definition`, `enhancedMode` `{enabled, model}`, `phraseList` au même niveau qu'`enhancedMode` | Confirmé par la documentation, y compris la place de `phraseList` (sous `definition`, pas sous `enhancedMode`) et sa prise en charge par MAI-Transcribe-2. | Format juste |
 
+Complément du 2026-11-07 : la page de présentation audio de Mistral (docs.mistral.ai, « overview ») écrit
+`voxtral-small-transcribe-3-0` et `voxtral-mini-transcribe-realtime-3-0`, alors que le guide « transcribe in realtime »
+écrit `voxtral-mini-transcribe-realtime-3`. Les deux formes coexistent dans la documentation officielle.
+
 **Aucun changement de code à ce stade**, car les sources se contredisent. À trancher au banc, avec ces commandes :
 
 ```bash
