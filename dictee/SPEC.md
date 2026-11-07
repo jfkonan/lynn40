@@ -107,6 +107,56 @@ Valeurs : `brut` (défaut), `formel`, `courriel`, `decontracte`. Libellés : « 
 L'app garde les **10 dernières transcriptions** (texte, date) dans l'App Group, la plus récente en premier, pour que
 le clavier puisse les réinsérer. Bouton « Effacer l'historique » dans le panneau rapide et dans l'app.
 
+## 2 ter. Transcription en continu (streaming)
+
+Objectif : le texte arrive **à la seconde où l'on relâche** le bouton, comme chez Wispr Flow. Au lieu d'envoyer le fichier
+une fois l'enregistrement fini (§2.2), l'app ouvre une connexion WebSocket **dès le début de l'enregistrement** et envoie
+l'audio par morceaux pendant que l'utilisateur parle ; au relâchement, elle demande le texte final, qui ne concerne plus que
+les derniers mots.
+
+Règles communes :
+- Réglage `streamingEnabled` (défaut `true`). Actif seulement si le fournisseur choisi a un protocole ci-dessous **et** que sa clé
+  est présente ; sinon, pipeline du §2.
+- Le fichier WAV du §2.1 est **toujours écrit** en parallèle : si la connexion échoue, se coupe, ou si le texte final n'arrive
+  pas dans les **10 s** après le relâchement, l'app **retombe sur l'envoi du fichier** (§2.2), sans message d'erreur.
+- La connexion est ouverte à l'appui ; l'audio est mis en tampon localement jusqu'à ce que la session soit prête, puis envoyé.
+  Morceaux de 50 à 200 ms, PCM 16 bits little-endian mono, **sans en-tête WAV**, encodés en base64 dans un JSON.
+- Le texte est l'assemblage des deltas reçus, tels quels (ne pas ajouter ni retirer d'espaces) ; si le fournisseur renvoie un
+  texte final complet, c'est lui qui fait foi. Nettoyage (§2.3), texte vide (§2.4) et suppression du fichier (§2.5) inchangés.
+- La durée **relâchement → insertion** est mesurée et affichée (menu Mac « Dernière transcription · 0,4 s », app iOS), pour
+  régler le délai du modèle sur des chiffres.
+- Coût : la transcription en continu est plus chère que le fichier (OpenAI : 0,017 $/min contre 0,0045 $/min). À dire dans
+  les réglages.
+
+### `openai` : `gpt-live-transcribe`
+- `wss://api.openai.com/v1/realtime?intent=transcription` (sans paramètre `model`), en-tête `Authorization: Bearer <clé OpenAI>`.
+- Audio : PCM16 mono **24 000 Hz** (rééchantillonnage depuis le micro). Après `session.created`, envoyer :
+  `{"type":"session.update","session":{"type":"transcription","audio":{"input":{"format":{"type":"audio/pcm","rate":24000},
+  "transcription":{"model":"<openAIRealtimeModel>","languages":["fr"],"keywords":[…]},"turn_detection":null}}}}`.
+  `languages` omis si `language` est vide ; `keywords` = termes du vocabulaire (un par entrée, sans `<`, `>` ni retour à la ligne), omis si vide.
+  Le modèle ne gère pas de détection de fin de parole côté serveur : c'est le relâchement qui la donne.
+- Envoi : `{"type":"input_audio_buffer.append","audio":"<base64>"}`. Relâchement : `{"type":"input_audio_buffer.commit"}`.
+- Réception : `session.updated` (prêt), `conversation.item.input_audio_transcription.delta` (`delta`),
+  `conversation.item.input_audio_transcription.completed` (`transcript` = texte final), `conversation.item.input_audio_transcription.failed` et `error` (`error.message`).
+
+### `mistral` : `voxtral-mini-transcribe-realtime-3`
+- `wss://api.mistral.ai/v1/audio/transcriptions/realtime?model=<mistralRealtimeModel>`, en-tête `Authorization: Bearer <clé Mistral>`.
+- Audio : PCM16 mono **16 000 Hz** (`pcm_s16le`). Après `session.created`, envoyer :
+  `{"type":"session.update","session":{"audio_format":{"encoding":"pcm_s16le","sample_rate":16000},"target_streaming_delay_ms":480,
+  "language":"fr","context_bias":[…]}}` ; `language` omis si vide ; `context_bias` = termes du vocabulaire, omis si vide.
+  Les réglages sont figés au premier morceau d'audio.
+- Envoi : `{"type":"input_audio.append","audio":"<base64>"}`. Relâchement : `{"type":"input_audio.end"}`.
+- Réception : `session.updated` (prêt), `transcription.text.delta` (`text`, chaque delta est définitif), `transcription.done` (`text` = texte final), `error` (`error.message`).
+
+### `microsoft` : `MAI-Transcribe-2-Streaming` (à faire)
+- Même protocole qu'OpenAI, `wss://<ressource>.services.ai.azure.com/mai/v1/realtime?intent=transcription`, en-tête `api-key`,
+  PCM16 16 000 ou 24 000 Hz, `turn_detection` à `null`, `commit` au relâchement, événement supplémentaire
+  `conversation.item.input_audio_transcription.intermediate`. Il faut un **déploiement Foundry** dans l'une des régions
+  `swedencentral`, `centralus`, `eastus2`, `southeastasia`, distinct de la ressource Azure Speech du §2 bis : un réglage
+  « ressource Foundry » sera nécessaire. Tant qu'il n'existe pas, Microsoft reste au pipeline du §2.
+
+Windows : à implémenter selon la même section.
+
 ## 3. Réglages (mêmes noms et valeurs par défaut)
 
 | Réglage | Clé | Défaut |
@@ -121,6 +171,9 @@ le clavier puisse les réinsérer. Bouton « Effacer l'historique » dans le pan
 | Nettoyer le texte | `cleanupEnabled` | `false` |
 | Style d'écriture | `writingStyle` | `brut` (voir §2, « Style d'écriture ») |
 | Modèle de nettoyage | `cleanupModel` | `gpt-4o-mini` |
+| Transcription en continu | `streamingEnabled` | `true` (voir §2 ter) |
+| Modèle OpenAI en continu | `openAIRealtimeModel` | `gpt-live-transcribe` |
+| Modèle Mistral en continu | `mistralRealtimeModel` | `voxtral-mini-transcribe-realtime-3` |
 | Correction automatique (clavier iOS) | `autocorrectEnabled` | `true` |
 
 Une valeur vide ou faite uniquement d'espaces pour `model`, `mistralModel`, `microsoftModel`, `azureRegion` ou `cleanupModel`

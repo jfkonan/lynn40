@@ -23,6 +23,8 @@ struct ContentView: View {
     private var writingStyle: WritingStyle = SharedStore.Default.writingStyle
     @AppStorage(SharedStore.Key.cleanupModel, store: SharedStore.shared.defaults)
     private var cleanupModel = SharedStore.Default.cleanupModel
+    @AppStorage(SharedStore.Key.streamingEnabled, store: SharedStore.shared.defaults)
+    private var streamingEnabled = SharedStore.Default.streamingEnabled
     @AppStorage(SharedStore.Key.autocorrectEnabled, store: SharedStore.shared.defaults)
     private var autocorrectEnabled = SharedStore.Default.autocorrectEnabled
     @AppStorage(SharedStore.Key.sessionMinutes, store: SharedStore.shared.defaults)
@@ -103,6 +105,12 @@ struct ContentView: View {
                 }
             }
             if !engine.lastTranscript.isEmpty {
+                if let latency = engine.lastLatency {
+                    Text(String(format: "Texte prêt %.1f s après le relâchement", locale: Locale(identifier: "fr_FR"), latency)
+                         + (engine.lastStreamingNote.map { " · repli fichier : \($0)" } ?? " · en continu"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
                 Text(engine.lastTranscript)
                     .textSelection(.enabled)
                 Button("Copier") { UIPasteboard.general.string = engine.lastTranscript }
@@ -163,6 +171,7 @@ struct ContentView: View {
             TextField("Autre langue (code ISO, ex. es)", text: $language)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+            Toggle("Transcription en continu", isOn: $streamingEnabled)
             VStack(alignment: .leading) {
                 Text("Vocabulaire").font(.subheadline)
                 TextEditor(text: $vocabulary)
@@ -172,7 +181,7 @@ struct ContentView: View {
         } header: {
             Text("Transcription")
         } footer: {
-            Text("Le vocabulaire (termes séparés par des virgules) est transmis au modèle pour qu'il orthographie correctement vos termes (sigles, noms propres, termes juridiques). Mistral et Microsoft en reçoivent les 100 premiers termes.")
+            Text("Le vocabulaire (termes séparés par des virgules) est transmis au modèle pour qu'il orthographie correctement vos termes (sigles, noms propres, termes juridiques). Mistral et Microsoft en reçoivent les 100 premiers termes. Transcription en continu : l'audio est transcrit pendant que vous parlez et le texte arrive dès le relâchement (OpenAI, Mistral ; plus cher : 0,017 $/min chez OpenAI). En cas d'échec, l'envoi du fichier prend le relais.")
         }
     }
 

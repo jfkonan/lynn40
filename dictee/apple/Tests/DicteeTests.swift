@@ -1144,3 +1144,87 @@ final class SmartSpaceRuleTests: XCTestCase {
         XCTAssertFalse(SmartSpaceRule.shouldReplaceSpace(typed: "a", contextBefore: "tribunal ", smartSpacePending: true))
     }
 }
+
+final class RealtimeProtocolTests: XCTestCase {
+    private let settings = TranscriptionSettings(language: "fr", vocabulary: "OHADA, AUSCGIE, mauvais<terme>")
+
+    private func object(_ data: Data) -> [String: Any] {
+        (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+    }
+
+    func testURLsEtEnTetes() {
+        XCTAssertEqual(RealtimeProtocol.url(for: .openai, settings: settings)?.absoluteString,
+                       "wss://api.openai.com/v1/realtime?intent=transcription")
+        XCTAssertEqual(RealtimeProtocol.url(for: .mistral, settings: settings)?.absoluteString,
+                       "wss://api.mistral.ai/v1/audio/transcriptions/realtime?model=voxtral-mini-transcribe-realtime-3")
+        XCTAssertNil(RealtimeProtocol.url(for: .microsoft, settings: settings))
+        XCTAssertFalse(RealtimeProtocol.supports(.microsoft))
+        XCTAssertEqual(RealtimeProtocol.headers(for: .openai, apiKey: "sk-x"), ["Authorization": "Bearer sk-x"])
+        XCTAssertEqual(RealtimeProtocol.sampleRate(for: .openai), 24_000)
+        XCTAssertEqual(RealtimeProtocol.sampleRate(for: .mistral), 16_000)
+    }
+
+    func testSessionUpdateOpenAI() throws {
+        let root = object(RealtimeProtocol.sessionUpdate(for: .openai, settings: settings))
+        XCTAssertEqual(root["type"] as? String, "session.update")
+        let session = try XCTUnwrap(root["session"] as? [String: Any])
+        XCTAssertEqual(session["type"] as? String, "transcription")
+        let input = try XCTUnwrap((session["audio"] as? [String: Any])?["input"] as? [String: Any])
+        XCTAssertEqual((input["format"] as? [String: Any])?["rate"] as? Int, 24_000)
+        XCTAssertTrue(input["turn_detection"] is NSNull)
+        let transcription = try XCTUnwrap(input["transcription"] as? [String: Any])
+        XCTAssertEqual(transcription["model"] as? String, "gpt-live-transcribe")
+        XCTAssertEqual(transcription["languages"] as? [String], ["fr"])
+        XCTAssertEqual(transcription["keywords"] as? [String], ["OHADA", "AUSCGIE"], "terme avec < > écarté")
+    }
+
+    func testSessionUpdateMistral() throws {
+        let root = object(RealtimeProtocol.sessionUpdate(for: .mistral, settings: settings))
+        let session = try XCTUnwrap(root["session"] as? [String: Any])
+        XCTAssertEqual((session["audio_format"] as? [String: Any])?["encoding"] as? String, "pcm_s16le")
+        XCTAssertEqual((session["audio_format"] as? [String: Any])?["sample_rate"] as? Int, 16_000)
+        XCTAssertEqual(session["target_streaming_delay_ms"] as? Int, 480)
+        XCTAssertEqual(session["language"] as? String, "fr")
+        XCTAssertEqual(session["context_bias"] as? [String], ["OHADA", "AUSCGIE", "mauvais<terme>"])
+    }
+
+    func testLangueVideOmise() {
+        let empty = TranscriptionSettings(language: "", vocabulary: "")
+        let openai = object(RealtimeProtocol.sessionUpdate(for: .openai, settings: empty))
+        let transcription = ((openai["session"] as? [String: Any])?["audio"] as? [String: Any])
+            .flatMap { ($0["input"] as? [String: Any])?["transcription"] as? [String: Any] }
+        XCTAssertNil(transcription?["languages"])
+        XCTAssertNil(transcription?["keywords"])
+        let mistral = object(RealtimeProtocol.sessionUpdate(for: .mistral, settings: empty))
+        XCTAssertNil((mistral["session"] as? [String: Any])?["language"])
+    }
+
+    func testAppendEtFin() {
+        let pcm = Data([1, 2, 3])
+        XCTAssertEqual(object(RealtimeProtocol.append(for: .openai, pcm: pcm))["type"] as? String, "input_audio_buffer.append")
+        XCTAssertEqual(object(RealtimeProtocol.append(for: .openai, pcm: pcm))["audio"] as? String, pcm.base64EncodedString())
+        XCTAssertEqual(object(RealtimeProtocol.append(for: .mistral, pcm: pcm))["type"] as? String, "input_audio.append")
+        XCTAssertEqual(object(RealtimeProtocol.end(for: .openai))["type"] as? String, "input_audio_buffer.commit")
+        XCTAssertEqual(object(RealtimeProtocol.end(for: .mistral))["type"] as? String, "input_audio.end")
+    }
+
+    func testLectureDesEvenements() {
+        func parse(_ json: String, _ provider: TranscriptionProvider) -> RealtimeProtocol.Event {
+            RealtimeProtocol.parse(Data(json.utf8), provider: provider)
+        }
+        XCTAssertEqual(parse(#"{"type":"session.updated","session":{}}"#, .openai), .ready)
+        XCTAssertEqual(parse(#"{"type":"session.created"}"#, .openai), .ignored)
+        XCTAssertEqual(parse(#"{"type":"conversation.item.input_audio_transcription.delta","delta":"Bon"}"#, .openai), .delta("Bon"))
+        XCTAssertEqual(parse(#"{"type":"conversation.item.input_audio_transcription.completed","transcript":"Bonjour."}"#, .openai), .completed("Bonjour."))
+        XCTAssertEqual(parse(#"{"type":"error","error":{"message":"invalid key"}}"#, .openai), .error("invalid key"))
+        XCTAssertEqual(parse(#"{"type":"transcription.text.delta","text":"jour"}"#, .mistral), .delta("jour"))
+        XCTAssertEqual(parse(#"{"type":"transcription.done","text":"Bonjour."}"#, .mistral), .completed("Bonjour."))
+        XCTAssertEqual(parse("pas du json", .mistral), .ignored)
+    }
+
+    func testTexteFinal() {
+        XCTAssertEqual(RealtimeProtocol.finalText(completed: " Bonjour. ", deltas: ["Bon", "soir"]), "Bonjour.")
+        XCTAssertEqual(RealtimeProtocol.finalText(completed: "", deltas: ["Bon", "jour "]), "Bonjour")
+        XCTAssertEqual(RealtimeProtocol.finalText(completed: nil, deltas: []), "")
+    }
+}

@@ -19,6 +19,8 @@ struct SettingsView: View {
     private var azureRegion = SharedStore.Default.azureRegion
     @AppStorage(SharedStore.Key.language, store: SharedStore.shared.defaults)
     private var language = SharedStore.Default.language
+    @AppStorage(SharedStore.Key.streamingEnabled, store: SharedStore.shared.defaults)
+    private var streamingEnabled = SharedStore.Default.streamingEnabled
     @AppStorage(SharedStore.Key.vocabulary, store: SharedStore.shared.defaults)
     private var vocabulary = SharedStore.Default.vocabulary
     @AppStorage(SharedStore.Key.cleanupEnabled, store: SharedStore.shared.defaults)
@@ -147,6 +149,7 @@ struct SettingsView: View {
                 }
             }
             TextField("Autre langue (code ISO)", text: $language, prompt: Text("es"))
+            Toggle("Transcription en continu", isOn: $streamingEnabled)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Vocabulaire")
                 TextEditor(text: $vocabulary)
@@ -156,7 +159,7 @@ struct SettingsView: View {
         } header: {
             Text("Transcription")
         } footer: {
-            Text("Le vocabulaire (termes séparés par des virgules) aide le modèle à orthographier vos termes (sigles, noms propres, termes juridiques). Mistral et Microsoft en reçoivent les 100 premiers termes. Langue vide : détection automatique.")
+            Text("Le vocabulaire (termes séparés par des virgules) aide le modèle à orthographier vos termes (sigles, noms propres, termes juridiques). Mistral et Microsoft en reçoivent les 100 premiers termes. Langue vide : détection automatique. Transcription en continu : l'audio est transcrit pendant que vous parlez, le texte arrive dès le relâchement (OpenAI, Mistral ; plus cher : 0,017 $/min chez OpenAI). En cas d'échec, l'envoi du fichier prend le relais.")
         }
     }
 

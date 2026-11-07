@@ -17,6 +17,10 @@ final class DictationEngine: ObservableObject {
     @Published private(set) var lastTranscript = ""
     @Published private(set) var lastError: String?
     @Published private(set) var inputLevel: Float = 0
+    /// Raison du repli sur le fichier à la dernière dictée (diagnostic), `nil` si le continu a servi.
+    @Published private(set) var lastStreamingNote: String?
+    /// Durée relâchement → texte prêt de la dernière dictée (SPEC §2 ter), pour régler le modèle sur des chiffres.
+    @Published private(set) var lastLatency: TimeInterval?
     /// Vrai quand la session vient d'être lancée depuis le clavier : l'écran invite à revenir en arrière.
     @Published var launchedFromKeyboard = false
 
@@ -30,6 +34,9 @@ final class DictationEngine: ObservableObject {
     private var maxDurationTimer: Timer?
     private var sessionDeadline = Date.distantPast
     private var transcriptionTask: Task<Void, Never>?
+    /// Session de transcription en continu de l'enregistrement en cours (SPEC §2 ter), `nil` si fichier seul.
+    private var streamer: RealtimeTranscriber?
+    private var releasedAt: Date?
     private var signalTokens: [UUID] = []
     private var systemObservers: [NSObjectProtocol] = []
 
@@ -167,8 +174,11 @@ final class DictationEngine: ObservableObject {
         }
         guard state == .idle || state == .error else { return }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("dictee-\(UUID().uuidString).wav")
+        // Transcription en continu si possible (SPEC §2 ter) : connexion ouverte dès maintenant, fichier en repli.
+        let streamer = StreamingSupport.makeTranscriber(store: store)
+        self.streamer = streamer
         do {
-            try recorder.begin(url: url)
+            try recorder.begin(url: url, stream: streamer.map { StreamingSupport.stream(for: $0) })
         } catch {
             publish(.error, error: "Impossible de créer le fichier audio : \(error.localizedDescription)")
             return
@@ -190,28 +200,36 @@ final class DictationEngine: ObservableObject {
         }
         guard result.duration >= 0.3 else {
             try? FileManager.default.removeItem(at: result.url)
+            streamer?.cancel()
+            streamer = nil
             publish(.idle, error: nil)
             return
         }
+        releasedAt = Date()
         publish(.transcribing, error: nil)
+        let streamer = self.streamer
+        self.streamer = nil
         transcriptionTask = Task { [weak self] in
-            await self?.transcribe(fileURL: result.url)
+            await self?.transcribe(fileURL: result.url, streamer: streamer)
         }
     }
 
     func cancelRecording() {
         maxDurationTimer?.invalidate()
+        streamer?.cancel()
+        streamer = nil
         recorder.cancel()
         transcriptionTask?.cancel()
         transcriptionTask = nil
         publish(.idle, error: nil)
     }
 
-    private func transcribe(fileURL: URL) async {
+    private func transcribe(fileURL: URL, streamer: RealtimeTranscriber?) async {
         // Laisse le temps de finir l'appel réseau si iOS veut suspendre l'app.
         let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "dictee.transcription")
         defer {
             try? FileManager.default.removeItem(at: fileURL)
+            streamer?.cancel()
             if backgroundTask != .invalid { UIApplication.shared.endBackgroundTask(backgroundTask) }
         }
 
@@ -222,12 +240,11 @@ final class DictationEngine: ObservableObject {
         let keys = KeychainStore.loadAllKeys()
 
         do {
-            let raw = try await TranscriptionService.transcribe(
-                provider: provider,
-                audioURL: fileURL,
-                settings: settings,
-                keys: keys
-            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            let result = try await StreamingSupport.rawText(
+                streamer: streamer, provider: provider, audioURL: fileURL, settings: settings, keys: keys
+            )
+            let raw = result.text
+            lastStreamingNote = result.fallbackReason
 
             // Nettoyage toujours chez OpenAI, si « Nettoyer le texte » est activé ou si le style n'est pas « Brut » ;
             // sauté sans clé OpenAI, et en cas d'échec on garde le texte brut.
@@ -248,6 +265,7 @@ final class DictationEngine: ObservableObject {
             // Historique des 10 dernières transcriptions, que le clavier peut réinsérer.
             store.addToHistory(transcript)
             lastTranscript = text
+            if let releasedAt { lastLatency = Date().timeIntervalSince(releasedAt) }
             publish(.idle, error: nil)
             DarwinNotifier.shared.post(.transcriptReady)
         } catch is CancellationError {

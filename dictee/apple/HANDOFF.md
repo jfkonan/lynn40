@@ -229,6 +229,18 @@ Note chaque point comme OK, KO ou partiel, et décris les problèmes rencontrés
 - [ ] Dictée longue (2 à 3 min) : transcription complète.
 - [ ] Musique en cours pendant la session : elle continue (option `.mixWithOthers`).
 
+## Transcription en continu (SPEC §2 ter)
+
+`Core/RealtimeProtocol.swift` (fonctions pures : URL, `session.update`, `append`, fin, lecture des événements ; testées),
+`Core/RealtimeTranscriber.swift` (WebSocket `URLSessionWebSocketTask`, audio mis en tampon jusqu'à `session.updated`,
+texte final attendu 10 s au plus), `Core/StreamingSupport.swift` (décision, repli fichier, raison du repli pour l'affichage).
+`BufferRecorder.begin(url:stream:)` convertit chaque tampon du micro en PCM16 à la fréquence du fournisseur (24 kHz OpenAI,
+16 kHz Mistral) en plus du WAV. Les moteurs (`DictationEngine`, `DictationController`) ouvrent la session à l'appui et
+affichent la durée relâchement → texte (`lastLatency`) et la raison d'un éventuel repli (`lastStreamingNote`).
+Validé en recette le 2026-11-07 avec OpenAI `gpt-live-transcribe` sur Mac : texte en continu, sans repli.
+Points à surveiller : noms de champs OpenAI (`languages`, `keywords`) et Mistral (`context_bias`, `target_streaming_delay_ms`)
+si un fournisseur change son protocole ; coût (0,017 $/min OpenAI) ; Microsoft reste au fichier (déploiement Foundry à prévoir).
+
 ## Points à risque connus (iOS)
 
 1. **Ouverture de l'app depuis le clavier** (`KeyboardViewController.openContainingApp`). Il n'existe pas d'API officielle. La méthode utilisée remonte la chaîne des répondeurs jusqu'à `UIApplication` et appelle `openURL:options:completionHandler:` via le runtime Objective-C.
@@ -366,6 +378,10 @@ Pour l'essayer durablement, copie-la dans `/Applications` (plus stable pour les 
 ### Check-list de recette Mac
 
 Note chaque point comme OK, KO ou partiel, dans `RECETTE.md` (section macOS).
+
+**Transcription en continu**
+- [ ] Après une dictée, le menu affiche « Dernière transcription · 0,x s » sans ligne « Repli fichier » ; réglage désactivé → délai plus long, pas de repli affiché.
+- [ ] Wi-Fi coupé pendant la dictée : le texte arrive quand même (repli fichier) ou un message d'erreur clair, pas de blocage.
 
 **Installation et premier lancement**
 - [ ] `xcodebuild … -scheme DicteeMac build` et `test` réussissent ; tous les tests `DicteeMacTests` passent.

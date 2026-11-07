@@ -8,6 +8,9 @@ struct TranscriptionSettings: Equatable, Sendable {
     var azureRegion: String
     var language: String
     var vocabulary: String
+    /// Transcription en continu (SPEC §2 ter).
+    var openAIRealtimeModel: String
+    var mistralRealtimeModel: String
 
     init(
         openAIModel: String = SharedStore.Default.model,
@@ -15,7 +18,9 @@ struct TranscriptionSettings: Equatable, Sendable {
         microsoftModel: String = SharedStore.Default.microsoftModel,
         azureRegion: String = SharedStore.Default.azureRegion,
         language: String = SharedStore.Default.language,
-        vocabulary: String = SharedStore.Default.vocabulary
+        vocabulary: String = SharedStore.Default.vocabulary,
+        openAIRealtimeModel: String = SharedStore.Default.openAIRealtimeModel,
+        mistralRealtimeModel: String = SharedStore.Default.mistralRealtimeModel
     ) {
         self.openAIModel = openAIModel
         self.mistralModel = mistralModel
@@ -23,6 +28,8 @@ struct TranscriptionSettings: Equatable, Sendable {
         self.azureRegion = azureRegion
         self.language = language
         self.vocabulary = vocabulary
+        self.openAIRealtimeModel = openAIRealtimeModel
+        self.mistralRealtimeModel = mistralRealtimeModel
     }
 }
 
@@ -419,7 +426,9 @@ extension SharedStore {
             microsoftModel: microsoftModel,
             azureRegion: azureRegion,
             language: language,
-            vocabulary: vocabulary
+            vocabulary: vocabulary,
+            openAIRealtimeModel: openAIRealtimeModel,
+            mistralRealtimeModel: mistralRealtimeModel
         )
     }
 }

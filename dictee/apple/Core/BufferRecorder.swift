@@ -3,8 +3,21 @@ import AVFoundation
 /// Reçoit les tampons du micro (thread audio) et, pendant un enregistrement,
 /// les convertit en 16 kHz mono et les écrit dans un fichier WAV.
 /// 16 kHz mono 16 bits = 32 Ko/s, soit environ 13 min sous la limite de 25 Mo d'OpenAI.
+/// En parallèle, si un `stream` est fourni, chaque tampon est aussi converti en PCM16 à la fréquence demandée
+/// et transmis au flux de transcription en continu (SPEC §2 ter) ; le fichier reste le repli.
 final class BufferRecorder: @unchecked Sendable {
     static let sampleRate: Double = 16_000
+
+    /// Destination des morceaux PCM16 (little-endian, mono, sans en-tête), appelée sur le thread audio.
+    struct Stream {
+        let sampleRate: Double
+        let sink: @Sendable (Data) -> Void
+    }
+
+    private var stream: Stream?
+    private var streamFormat: AVAudioFormat?
+    private var streamConverter: AVAudioConverter?
+    private var streamConverterInputFormat: AVAudioFormat?
 
     private let lock = NSLock()
     private let outputFormat = AVAudioFormat(
@@ -31,7 +44,7 @@ final class BufferRecorder: @unchecked Sendable {
         return file != nil
     }
 
-    func begin(url: URL) throws {
+    func begin(url: URL, stream: Stream? = nil) throws {
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM,
             AVSampleRateKey: BufferRecorder.sampleRate,
@@ -46,6 +59,12 @@ final class BufferRecorder: @unchecked Sendable {
         file = newFile
         fileURL = url
         framesWritten = 0
+        self.stream = stream
+        streamFormat = stream.flatMap {
+            AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: $0.sampleRate, channels: 1, interleaved: true)
+        }
+        streamConverter = nil
+        streamConverterInputFormat = nil
         lock.unlock()
     }
 
@@ -87,6 +106,34 @@ final class BufferRecorder: @unchecked Sendable {
         } catch {
             // Un tampon perdu ne doit pas interrompre la dictée.
         }
+        streamChunk(from: buffer)
+    }
+
+    /// Convertit le tampon du micro en PCM16 à la fréquence du flux et le transmet. Sous `lock`.
+    private func streamChunk(from buffer: AVAudioPCMBuffer) {
+        guard let stream, let streamFormat else { return }
+        if streamConverter == nil || streamConverterInputFormat != buffer.format {
+            streamConverter = AVAudioConverter(from: buffer.format, to: streamFormat)
+            streamConverterInputFormat = buffer.format
+        }
+        guard let streamConverter else { return }
+        let ratio = streamFormat.sampleRate / buffer.format.sampleRate
+        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1024
+        guard let output = AVAudioPCMBuffer(pcmFormat: streamFormat, frameCapacity: capacity) else { return }
+        var supplied = false
+        var conversionError: NSError?
+        let status = streamConverter.convert(to: output, error: &conversionError) { _, inputStatus in
+            if supplied {
+                inputStatus.pointee = .noDataNow
+                return nil
+            }
+            supplied = true
+            inputStatus.pointee = .haveData
+            return buffer
+        }
+        guard status != .error, output.frameLength > 0, let samples = output.int16ChannelData?[0] else { return }
+        let data = Data(bytes: samples, count: Int(output.frameLength) * MemoryLayout<Int16>.size)
+        stream.sink(data)
     }
 
     /// Termine l'enregistrement et renvoie le fichier et sa durée en secondes.
@@ -97,6 +144,8 @@ final class BufferRecorder: @unchecked Sendable {
         file = nil // libérer l'AVAudioFile ferme le fichier
         fileURL = nil
         converter?.reset()
+        stream = nil
+        streamConverter = nil
         return (url, Double(framesWritten) / BufferRecorder.sampleRate)
     }
 

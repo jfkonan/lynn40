@@ -13,6 +13,10 @@ final class DictationController: ObservableObject {
     @Published private(set) var state: DictationState = .idle
     @Published private(set) var lastTranscript = ""
     @Published private(set) var lastError: String?
+    /// Raison du repli sur le fichier à la dernière dictée (diagnostic), `nil` si le continu a servi.
+    @Published private(set) var lastStreamingNote: String?
+    /// Durée relâchement → texte prêt de la dernière dictée (SPEC §2 ter).
+    @Published private(set) var lastLatency: TimeInterval?
     @Published private(set) var accessibilityGranted = Permissions.accessibilityGranted
     /// Problème de raccourci à signaler dans les réglages (autorisation manquante, combinaison déjà prise).
     @Published private(set) var hotkeyWarning: String?
@@ -31,6 +35,9 @@ final class DictationController: ObservableObject {
     private var maxDurationTask: Task<Void, Never>?
     private var transcriptionTask: Task<Void, Never>?
     private var startFeedbackTask: Task<Void, Never>?
+    /// Session de transcription en continu de l'enregistrement en cours (SPEC §2 ter), `nil` si fichier seul.
+    private var streamer: RealtimeTranscriber?
+    private var releasedAt: Date?
     /// « Tink » joué pour la dictée en cours : « Pop » suivra, même pour un appui trop court.
     private var startSoundPlayed = false
 
@@ -163,9 +170,13 @@ final class DictationController: ObservableObject {
             return
         }
 
+        let streamer = StreamingSupport.makeTranscriber(store: store)
+        self.streamer = streamer
         do {
-            try capture.start()
+            try capture.start(stream: streamer.map { StreamingSupport.stream(for: $0) })
         } catch {
+            streamer?.cancel()
+            self.streamer = nil
             fail("Impossible de démarrer le micro : \(error.localizedDescription)")
             return
         }
@@ -209,19 +220,25 @@ final class DictationController: ObservableObject {
         }
         guard TranscriptionRules.shouldTranscribe(duration: result.duration) else {
             try? FileManager.default.removeItem(at: result.url)
+            streamer?.cancel()
+            streamer = nil
             setState(.idle, error: nil)
             overlay.hide()
             return
         }
+        releasedAt = Date()
         setState(.transcribing, error: nil)
         overlay.show(.transcribing)
         let fileURL = result.url
+        let streamer = self.streamer
+        self.streamer = nil
         transcriptionTask = Task { [weak self] in
             guard let self else {
                 try? FileManager.default.removeItem(at: fileURL)
+                streamer?.cancel()
                 return
             }
-            await self.transcribe(fileURL: fileURL)
+            await self.transcribe(fileURL: fileURL, streamer: streamer)
         }
     }
 
@@ -232,6 +249,8 @@ final class DictationController: ObservableObject {
         // Comme dans stop() : tout « Tink » est suivi d'un « Pop » (SPEC §6).
         if startSoundPlayed, settings.soundsEnabled { NSSound(named: "Pop")?.play() }
         capture.cancel()
+        streamer?.cancel()
+        streamer = nil
         setState(.idle, error: nil)
         if silently {
             overlay.hide()
@@ -257,9 +276,12 @@ final class DictationController: ObservableObject {
 
     // MARK: - Transcription
 
-    private func transcribe(fileURL: URL) async {
+    private func transcribe(fileURL: URL, streamer: RealtimeTranscriber?) async {
         // Le fichier audio est supprimé dans tous les cas (SPEC §2.5).
-        defer { try? FileManager.default.removeItem(at: fileURL) }
+        defer {
+            try? FileManager.default.removeItem(at: fileURL)
+            streamer?.cancel()
+        }
 
         // Réglages et clés lus une fois, avant l'appel réseau. Clé du fournisseur absente :
         // TranscriptionError.missingAPIKey (« Clé API Mistral manquante… »), affichée par le `catch` générique.
@@ -268,12 +290,11 @@ final class DictationController: ObservableObject {
         let keys = KeychainStore.loadAllKeys()
 
         do {
-            let raw = try await TranscriptionService.transcribe(
-                provider: provider,
-                audioURL: fileURL,
-                settings: settings,
-                keys: keys
-            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            let result = try await StreamingSupport.rawText(
+                streamer: streamer, provider: provider, audioURL: fileURL, settings: settings, keys: keys
+            )
+            let raw = result.text
+            lastStreamingNote = result.fallbackReason
 
             // Nettoyage toujours chez OpenAI. `nil` s'il est désactivé, sans clé OpenAI ou en échec :
             // finalText retombe alors sur le texte brut.
@@ -290,6 +311,7 @@ final class DictationController: ObservableObject {
             // Texte final vide : RuleError.noSpeech (« Aucune parole détectée. »), affichée par le `catch` générique.
             let text = try TranscriptionRules.finalText(raw: raw, cleaned: cleaned)
             lastTranscript = text
+            if let releasedAt { lastLatency = Date().timeIntervalSince(releasedAt) }
             await deliver(text)
         } catch is CancellationError {
             setState(.idle, error: nil)

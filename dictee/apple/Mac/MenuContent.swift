@@ -13,8 +13,11 @@ struct MenuContent: View {
         if controller.lastTranscript.isEmpty {
             Text("Dernière transcription : aucune")
         } else {
-            Menu("Dernière transcription") {
+            Menu(controller.lastLatency.map { "Dernière transcription · \(Self.latencyLabel($0))" } ?? "Dernière transcription") {
                 Text(Self.preview(of: controller.lastTranscript))
+                if let note = controller.lastStreamingNote {
+                    Text("Repli fichier : \(Self.preview(of: note))")
+                }
                 Divider()
                 Button("Copier") { controller.copyLastTranscript() }
             }
@@ -26,6 +29,11 @@ struct MenuContent: View {
             .keyboardShortcut(",")
         Button("Quitter") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
+    }
+
+    /// Durée relâchement → texte, en secondes avec une décimale (SPEC §2 ter).
+    nonisolated static func latencyLabel(_ seconds: TimeInterval) -> String {
+        String(format: "%.1f s", locale: Locale(identifier: "fr_FR"), seconds)
     }
 
     /// Début du texte, sur une ligne, pour le menu.

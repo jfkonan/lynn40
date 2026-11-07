@@ -45,6 +45,10 @@ final class SharedStore: @unchecked Sendable {
         static let sessionMinutes = "dictee.settings.sessionMinutes"
         /// Clavier iOS : correction automatique du mot à l'espace (SPEC §9).
         static let autocorrectEnabled = "dictee.settings.autocorrectEnabled"
+        // Transcription en continu (SPEC §2 ter)
+        static let streamingEnabled = "dictee.settings.streamingEnabled"
+        static let openAIRealtimeModel = "dictee.settings.openAIRealtimeModel"
+        static let mistralRealtimeModel = "dictee.settings.mistralRealtimeModel"
     }
 
     enum Default {
@@ -60,6 +64,9 @@ final class SharedStore: @unchecked Sendable {
         static let cleanupModel = "gpt-4o-mini"
         static let sessionMinutes = 10
         static let autocorrectEnabled = true
+        static let streamingEnabled = true
+        static let openAIRealtimeModel = "gpt-live-transcribe"
+        static let mistralRealtimeModel = "voxtral-mini-transcribe-realtime-3"
     }
 
     let defaults: UserDefaults
@@ -175,6 +182,15 @@ final class SharedStore: @unchecked Sendable {
     var vocabulary: String { defaults.string(forKey: Key.vocabulary) ?? Default.vocabulary }
     var cleanupEnabled: Bool { defaults.object(forKey: Key.cleanupEnabled) as? Bool ?? Default.cleanupEnabled }
     var autocorrectEnabled: Bool { defaults.object(forKey: Key.autocorrectEnabled) as? Bool ?? Default.autocorrectEnabled }
+    /// Transcription en continu (SPEC §2 ter).
+    var streamingEnabled: Bool { defaults.object(forKey: Key.streamingEnabled) as? Bool ?? Default.streamingEnabled }
+    var openAIRealtimeModel: String { nonEmpty(defaults.string(forKey: Key.openAIRealtimeModel), default: Default.openAIRealtimeModel) }
+    var mistralRealtimeModel: String { nonEmpty(defaults.string(forKey: Key.mistralRealtimeModel), default: Default.mistralRealtimeModel) }
+
+    private func nonEmpty(_ value: String?, default fallback: String) -> String {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? fallback : trimmed
+    }
 
     /// Style d'écriture : valeur inconnue ou absente → brut (SPEC §3). Modifiable depuis le clavier.
     var writingStyle: WritingStyle {

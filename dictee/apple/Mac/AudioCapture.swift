@@ -29,13 +29,14 @@ final class AudioCapture {
     /// Niveau sonore récent (0 à 1).
     var level: Float { recorder.level }
 
-    func start() throws {
+    /// `stream` : morceaux PCM pour la transcription en continu (SPEC §2 ter), en plus du fichier.
+    func start(stream: BufferRecorder.Stream? = nil) throws {
         stopEngine()
         restarts = 0
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("dictee-\(UUID().uuidString).wav")
 
-        try recorder.begin(url: url)
+        try recorder.begin(url: url, stream: stream)
         do {
             try startEngine()
         } catch {
